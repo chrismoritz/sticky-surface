@@ -175,32 +175,45 @@
 <div id="sticky" class="sticky" data-presentation="full-width" data-surface="opaque" data-visible="false">
   <div class="sticky__surface">
 
-    <button id="stickyRestore" class="sticky__restore" type="button" hidden>
-      <span class="sticky__restore-dot" aria-hidden="true"></span>
-      Reopen
-    </button>
+    <!-- Full content: collapses to zero height (not display:none) so the
+         minimize/restore transition can animate instead of jump-cutting. -->
+    <div class="sticky__collapse" id="stickyCollapse">
+      <div class="sticky__collapse-inner" id="stickyCollapseInner">
+        <div class="sticky__bar" id="stickyBar">
+          <div class="sticky__primary" id="stickyPrimary">
+            <!-- populated by script.js: message, ctas, nav links, or search-inline -->
+          </div>
 
-    <div class="sticky__bar" id="stickyBar">
-      <div class="sticky__primary" id="stickyPrimary">
-        <!-- populated by script.js: message, ctas, nav links, or search-inline -->
-      </div>
+          <div class="sticky__utilities" id="stickyUtilities">
+            <!-- chat / search widgets populated by script.js -->
+          </div>
 
-      <div class="sticky__utilities" id="stickyUtilities">
-        <!-- chat / search widgets populated by script.js -->
-      </div>
+          <div class="sticky__controls" id="stickyControls">
+            <button id="stickyMinimize" class="sticky__icon-btn" type="button" aria-label="Minimize" hidden>
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button id="stickyDismiss" class="sticky__icon-btn" type="button" aria-label="Dismiss" hidden>
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+        </div>
 
-      <div class="sticky__controls" id="stickyControls">
-        <button id="stickyMinimize" class="sticky__icon-btn" type="button" aria-label="Minimize" hidden>
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        </button>
-        <button id="stickyDismiss" class="sticky__icon-btn" type="button" aria-label="Dismiss" hidden>
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        </button>
+        <!-- Suggested-prompts / chat panel, search results panel -->
+        <div class="sticky__flyout" id="stickyFlyout" hidden></div>
       </div>
     </div>
 
-    <!-- Suggested-prompts / chat panel, search results panel -->
-    <div class="sticky__flyout" id="stickyFlyout" hidden></div>
+    <!-- Restored/minimized affordance: a discrete grip, not a labeled button,
+         so it reads as a state of the same surface rather than a separate
+         control. Always in the DOM; visibility + interactivity are driven
+         by the collapse transition and inert, not hidden. -->
+    <div class="sticky__restore-collapse" id="stickyRestoreCollapse">
+      <div class="sticky__restore-collapse-inner" id="stickyRestoreCollapseInner">
+        <button id="stickyRestore" class="sticky__restore" type="button" aria-label="Restore">
+          <span class="sticky__restore-handle" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -292,6 +305,13 @@
           <option value="slide">Short slide up</option>
         </select>
       </label>
+      <p class="panel__label">Animation timing</p>
+      <p class="panel__hint">Governs entrance, minimize/restore, and other transitions.</p>
+      <div class="panel__row">
+        <label><input type="radio" name="animspeed" value="snappy"> Snappy</label>
+        <label><input type="radio" name="animspeed" value="standard" checked> Standard</label>
+        <label><input type="radio" name="animspeed" value="relaxed"> Relaxed</label>
+      </div>
     </details>
 
     <details class="panel__section">

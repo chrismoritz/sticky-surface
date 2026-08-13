@@ -290,17 +290,86 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 
-/* Minimized state */
-.sticky[data-minimized="true"] .sticky__bar { display: none; }
-.sticky[data-minimized="true"] .sticky__flyout { display: none; }
-.sticky[data-minimized="true"] .sticky__restore { display: inline-flex; }
-.sticky__restore {
-  display: none; align-items: center; gap: 8px;
-  margin: 10px auto; padding: 10px 18px;
-  border-radius: var(--radius-pill); border: 1px solid var(--line-strong);
-  background: #fff; font-size: .82rem; font-weight: 600; cursor: pointer;
+/* -------- Minimize / restore --------
+   Two grid-rows collapse wrappers (the well-supported 1fr/0fr technique for
+   animating to/from an intrinsic height without a JS-measured max-height)
+   swap places: the bar's wrapper shrinks to nothing while the restore
+   wrapper grows, and vice versa. Content fade/scale is staggered against
+   the height change with transition-delay so the sequence reads as one
+   deliberate motion — collapse, then hand off — rather than a cross-fade.
+   All of it scales with --dur-fast/--dur-med, which the Animation Timing
+   control in the panel adjusts live. */
+
+.sticky__collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur-med) var(--ease);
 }
-.sticky__restore-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
+.sticky__collapse-inner { overflow: hidden; min-height: 0; }
+
+.sticky__bar, .sticky__flyout {
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--dur-fast) var(--ease) calc(var(--dur-fast) * .3 + var(--dur-med) * .5),
+              transform var(--dur-fast) var(--ease) calc(var(--dur-fast) * .3 + var(--dur-med) * .5);
+}
+
+.sticky__restore-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-med) var(--ease) calc(var(--dur-fast) * .3);
+}
+.sticky__restore-collapse-inner {
+  overflow: hidden; min-height: 0;
+  display: flex; justify-content: center;
+}
+
+.sticky__restore {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 56px; min-height: 44px; padding: 4px 0;
+  border: none; background: transparent; cursor: pointer;
+  opacity: 0; transform: scale(.85);
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.sticky__restore-handle {
+  width: 32px; height: 4px; border-radius: var(--radius-pill);
+  background: var(--line-strong);
+  transition: background var(--dur-fast) var(--ease), width var(--dur-fast) var(--ease);
+}
+.sticky__restore:hover .sticky__restore-handle,
+.sticky__restore:focus-visible .sticky__restore-handle {
+  background: var(--ink); width: 40px;
+}
+
+/* Minimized: bar fades out immediately, then its area collapses while the
+   restore area grows in the same motion, then the handle fades in. */
+.sticky[data-minimized="true"] .sticky__bar,
+.sticky[data-minimized="true"] .sticky__flyout {
+  opacity: 0;
+  transform: translateY(4px) scale(.98);
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.sticky[data-minimized="true"] .sticky__collapse {
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-med) var(--ease) var(--dur-fast);
+}
+.sticky[data-minimized="true"] .sticky__restore-collapse {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur-med) var(--ease) var(--dur-fast);
+}
+.sticky[data-minimized="true"] .sticky__restore {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity var(--dur-fast) var(--ease) calc(var(--dur-fast) + var(--dur-med) * .6),
+              transform var(--dur-fast) var(--ease) calc(var(--dur-fast) + var(--dur-med) * .6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticky__collapse, .sticky__restore-collapse,
+  .sticky__bar, .sticky__flyout, .sticky__restore, .sticky__restore-handle {
+    transition: none !important;
+  }
+}
 
 /* -------- Presentation variants -------- */
 

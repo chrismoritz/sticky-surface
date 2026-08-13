@@ -63,6 +63,14 @@
     'V-ONE Concept — Not yet available',
   ];
 
+  // Drives entrance, minimize/restore, and other CSS-transition timing —
+  // see the --dur-fast/--dur-med custom properties in styles.css.
+  const ANIM_SPEEDS = {
+    snappy: { fast: '110ms', med: '180ms' },
+    standard: { fast: '160ms', med: '260ms' },
+    relaxed: { fast: '220ms', med: '420ms' },
+  };
+
   const PRESETS = [
     {
       id: 'current-state',
@@ -203,6 +211,7 @@
     visibility: 'scroll25',
     sectionReachTarget: 'design',
     entrance: 'fade',
+    animSpeed: 'standard',
     dismissMode: 'persistent',
     messageMode: 'static',
     rotatorIndex: 0,
@@ -249,6 +258,8 @@
   const $minimizeBtn = document.getElementById('stickyMinimize');
   const $dismissBtn = document.getElementById('stickyDismiss');
   const $restoreBtn = document.getElementById('stickyRestore');
+  const $collapseInner = document.getElementById('stickyCollapseInner');
+  const $restoreCollapseInner = document.getElementById('stickyRestoreCollapseInner');
 
   const $legacyFooter = document.getElementById('legacyFooter');
   const $legacyChatFab = document.getElementById('legacyChatFab');
@@ -367,7 +378,14 @@
     const showDismiss = state.dismissMode === 'dismissible-restore' || state.dismissMode === 'fully-dismissible';
     $minimizeBtn.hidden = !showMinimize;
     $dismissBtn.hidden = !showDismiss;
-    $restoreBtn.hidden = !(state.minimized || (state.dismissed && state.dismissMode === 'dismissible-restore'));
+
+    // The restore handle stays in the DOM at all times now (its visibility
+    // is animated via the collapse transition, not a hidden-attribute
+    // jump-cut) — inert keeps whichever side is visually collapsed from
+    // being focusable or clickable while it's invisible.
+    const collapsed = state.minimized || (state.dismissed && state.dismissMode === 'dismissible-restore');
+    $collapseInner.inert = collapsed;
+    $restoreCollapseInner.inert = !collapsed;
   }
 
   /* ------------------------------------------------------------------ *
@@ -1208,6 +1226,19 @@
     state.entrance = e.target.value;
   });
 
+  function applyAnimSpeed(value) {
+    const speed = ANIM_SPEEDS[value] || ANIM_SPEEDS.standard;
+    document.documentElement.style.setProperty('--dur-fast', speed.fast);
+    document.documentElement.style.setProperty('--dur-med', speed.med);
+  }
+
+  radios('animspeed').forEach((r) => r.addEventListener('change', () => {
+    if (!r.checked) return;
+    state.animSpeed = r.value;
+    applyAnimSpeed(r.value);
+    log('animation_speed_changed', r.value);
+  }));
+
   const $marketSelect = document.getElementById('marketSelect');
   const $languageSelect = document.getElementById('languageSelect');
   const $provinceField = document.getElementById('provinceField');
@@ -1299,7 +1330,9 @@
     setRadio('search', state.search);
     setRadio('device', state.device);
     setRadio('scrollspy', state.scrollSpy);
+    setRadio('animspeed', state.animSpeed);
     setSelect('visibilitySelect', state.visibility);
+    applyAnimSpeed(state.animSpeed);
     markActivePresetButton();
     applyControlsVisibility();
   }
@@ -1356,7 +1389,7 @@
 
   const PARAM_FIELD_MAP = {
     pr: 'presentation', sf: 'surface', cs: 'ctaStyle', vis: 'visibility',
-    ent: 'entrance', dm: 'dismissMode', mm: 'messageMode',
+    ent: 'entrance', an: 'animSpeed', dm: 'dismissMode', mm: 'messageMode',
     ch: 'chat', se: 'search', dv: 'device', ss: 'scrollSpy',
   };
 

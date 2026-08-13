@@ -95,6 +95,31 @@ Survey, Contextual content, or Primary content) — so the orchestration
 model's decision is visible in real time instead of only inferable from
 behavior.
 
+## Animation timing, and a more discrete minimize/restore
+
+**Animation timing** (Visibility & Entrance): Snappy / Standard / Relaxed.
+Governs entrance, the minimize/restore sequence below, and other CSS
+transitions across the component, via the `--dur-fast`/`--dur-med` custom
+properties — one control to feel out how much motion is too much or too
+little for a given placement.
+
+**Minimize** no longer swaps a labeled "Reopen" button in with a hard cut.
+It's now a small grip — no text, no accent color, just a thin line that
+darkens and widens slightly on hover/focus — sized for a proper touch
+target but visually about as quiet as a persistent affordance can be while
+still reading as clickable. The collapse itself is a real three-beat
+sequence rather than a cross-fade: content fades/settles out, the bar's
+height and the grip's height animate in the same motion (one shrinking as
+the other grows), then the grip fades in — using the CSS grid
+`grid-template-rows: 1fr → 0fr` technique to animate to/from an intrinsic
+height without JS measuring pixel values. Restoring runs the same sequence
+in reverse. `inert` is applied to whichever side is visually collapsed the
+instant the state changes (not after the animation finishes), so keyboard
+and screen-reader users can never land on off-screen controls mid-transition.
+The same mechanism drives "Dismissible + restore" mode, since a dismiss
+recovery affordance is conceptually the same collapse/expand behavior as
+minimize.
+
 ## Busy / overflow edge cases
 
 Two ways to show what happens when several things want the same real estate:
