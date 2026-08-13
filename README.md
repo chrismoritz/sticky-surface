@@ -61,6 +61,61 @@ The control panel itself is intentionally styled like a dev tool (dark,
 monospace, labeled "PROTOTYPE TOOL — NOT PART OF THE SITE") so it's never
 mistaken for customer-facing UI.
 
+## Presenter tools (panel → "Presenter Tools")
+
+These exist to make the demo itself easier to run — they aren't part of the
+proposed component, which is why they're tagged "Prototype tool" rather
+than V1/V2/V3:
+
+- **Custom content override** — type alternate message/CTA copy and click
+  Apply to preview it live, without leaving the demo, for "what if it said
+  X instead" questions. "Reset to preset" clears it.
+- **Copy Link** — encodes the current preset + presentation + behavior
+  choices into the URL so a specific configuration can be bookmarked or
+  sent to a client instead of re-clicking through the panel each time.
+- **Device frame preview** — opens a real, independently-rendered instance
+  of this same page at an iPhone / Android / Desktop viewport size, stripped
+  of the dev panel so it reads as a clean customer view. It mirrors whatever
+  configuration is currently active in the main window.
+
+## Text links vs. buttons, and the "Active layer" readout
+
+The **Presentation** section has a **Primary CTA style** toggle (Button /
+Text link). Editorial, brand-forward compositions — Brand Story and Concept
+Vehicle — default to the text-link treatment ("Formula 1 — Explore the Team
+→") since a pill button reads as harder-sell than that content warrants;
+commerce-forward presets (Tesla-Inspired, HVB + Chat) keep the button. The
+toggle applies to whichever composition is currently shown, so any preset
+can be previewed either way.
+
+A small **Active layer** readout stays pinned to the top of the panel and
+updates on every state change, naming which tier of the priority model is
+currently in control (Required UI, Active interaction, Requested utility,
+Survey, Contextual content, or Primary content) — so the orchestration
+model's decision is visible in real time instead of only inferable from
+behavior.
+
+## Busy / overflow edge cases
+
+Two ways to show what happens when several things want the same real estate:
+
+- **"Show Uncoordinated Chaos"** (Orchestration Demos): a deliberately naive
+  comparison — four independently-styled widgets (a promo footer, a chat
+  bubble, a survey card, a cookie banner) fixed-positioned with no shared
+  coordination layer, the way they'd look if four different teams or
+  vendors each shipped their own persistent widget. Turn it on while the
+  real coordinated sticky component is showing to watch it get buried —
+  that's the point.
+- **"Kitchen Sink (Overload)" preset + Auto-collapse** (Busy / Overflow
+  Edge Cases): applies section navigation + Chat + Search all at once, then
+  lets you compare two outcomes at a narrow width: raw (nav silently
+  eats extra items into its own horizontal scroll, with no visible cue that
+  Performance is even there) vs. auto-collapse on (nav explicitly collapses
+  to the active section + a "More" button before utilities shrink to
+  icon-only) — a real measurement-driven mechanism, not a canned animation.
+  The crowding badge reports which items collapsed, and admits when it's
+  still tight even after collapsing everything it can.
+
 ## What's V1 / V2 / V3
 
 The panel tags every control so you can tell a client, in one glance,
@@ -106,6 +161,26 @@ that separation is the point of the demo.
   happens automatically via CSS regardless of preset. Worth deciding, for a
   real build, whether composition changes by breakpoint should be
   fully automatic or explicitly authored per breakpoint like this demo.
+- **The naive nav treatment doesn't look broken — that's what makes it
+  worth flagging.** With auto-collapse off, a too-narrow section nav
+  doesn't visibly overflow or wrap; it silently becomes horizontally
+  scrollable within its own strip, so a section (e.g. Performance) can end
+  up genuinely unreachable with zero visual cue that it's there. That's a
+  more realistic "busy edge case" failure than an obviously broken layout,
+  and worth calling out to stakeholders precisely because it's easy to miss
+  in a design review.
+- **The device frame preview doesn't carry every panel setting across.**
+  It mirrors preset/presentation/behavior via the same URL parameters as
+  Copy Link, but a few purely-visual, presenter-only toggles (auto-collapse,
+  the custom content override) aren't in that URL and reset to default
+  inside the framed instance, since the frame boots a fresh, independent
+  page. Worth deciding, if this becomes a real internal tool, whether that
+  parameter set should be exhaustive.
+- **The "Uncoordinated Chaos" comparison is illustrative, not simulated.**
+  Its four widgets are fixed at deliberately overlapping positions rather
+  than reacting to real content or viewport changes — it's making a point
+  about the absence of coordination, not modeling how any particular
+  real vendor widget actually behaves.
 
 ## Accessibility notes
 

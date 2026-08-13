@@ -225,6 +225,8 @@
 
   <div class="panel__body">
 
+    <div class="active-layer" id="activeLayerReadout">Active layer: <strong>Primary persistent content</strong></div>
+
     <section class="panel__section">
       <h3>Demo Flow</h3>
       <p class="panel__hint">Follow in order for a live walkthrough.</p>
@@ -255,6 +257,11 @@
         <label><input type="radio" name="surface" value="opaque" checked> Opaque</label>
         <label><input type="radio" name="surface" value="translucent"> Translucent / blur</label>
         <label><input type="radio" name="surface" value="bordered"> Subtle border</label>
+      </div>
+      <p class="panel__label">Primary CTA style</p>
+      <div class="panel__row">
+        <label><input type="radio" name="ctastyle" value="button" checked> Button</label>
+        <label><input type="radio" name="ctastyle" value="text-link"> Text link</label>
       </div>
     </details>
 
@@ -346,12 +353,51 @@
     </details>
 
     <details class="panel__section">
+      <summary>Busy / Overflow Edge Cases <span class="tag tag--v2">V2 &middot; Concept</span></summary>
+      <p class="panel__hint">Apply the "Kitchen Sink" preset above (Content Presets), then toggle this to compare raw overflow against a priority-ordered auto-collapse — lowest-priority content (section navigation) gives way before utilities (Chat/Search) do.</p>
+      <label class="panel__row">
+        <input type="checkbox" id="autoCollapseToggle"> Auto-collapse when crowded
+      </label>
+      <p class="crowding-badge" id="crowdingBadge">Fits available space.</p>
+    </details>
+
+    <details class="panel__section">
       <summary>Orchestration Demos <span class="tag tag--v2">V2</span></summary>
       <p class="panel__hint">Trigger these to see the priority model in action: required UI &gt; active interaction &gt; requested utility &gt; primary content &gt; contextual content &gt; survey.</p>
       <div class="panel__row">
         <button class="btn btn--panel" id="triggerPrivacy" type="button">Show Privacy Notice</button>
         <button class="btn btn--panel" id="triggerSurvey" type="button">Trigger Survey</button>
         <button class="btn btn--panel" id="triggerStress" type="button">Stress Test (all at once)</button>
+        <button class="btn btn--panel" id="triggerChaos" type="button">Show Uncoordinated Chaos</button>
+      </div>
+    </details>
+
+    <details class="panel__section">
+      <summary>Presenter Tools <span class="tag tag--tool">Prototype tool</span></summary>
+      <p class="panel__hint">Utilities for running the demo — not part of the proposed component.</p>
+
+      <p class="panel__label">Custom content override</p>
+      <label class="panel__field">Message text
+        <input type="text" id="overrideMessage" placeholder="Leave blank to use the preset's message">
+      </label>
+      <label class="panel__field">CTA label
+        <input type="text" id="overrideCta" placeholder="Leave blank to use the preset's CTA">
+      </label>
+      <div class="panel__row">
+        <button class="btn btn--panel" id="applyOverride" type="button">Apply</button>
+        <button class="btn btn--panel" id="clearOverride" type="button">Reset to preset</button>
+      </div>
+
+      <p class="panel__label">Share this configuration</p>
+      <div class="panel__row">
+        <button class="btn btn--panel" id="copyLinkBtn" type="button">Copy Link</button>
+      </div>
+
+      <p class="panel__label">Device frame preview</p>
+      <div class="panel__row">
+        <button class="btn btn--panel" data-frame="apple" type="button">iPhone</button>
+        <button class="btn btn--panel" data-frame="android" type="button">Android</button>
+        <button class="btn btn--panel" data-frame="desktop" type="button">Desktop</button>
       </div>
     </details>
 
@@ -394,6 +440,52 @@
 </aside>
 
 <div id="liveRegion" class="visually-hidden" role="status" aria-live="polite"></div>
+
+<!-- ============================================================
+     "UNCOORDINATED CHAOS" COMPARISON
+     Four independently-styled widgets fighting for the same bottom
+     real estate, with no shared coordination layer — the naive
+     alternative the orchestration model exists to prevent.
+     ============================================================ -->
+<div id="chaosOverlay" class="chaos-overlay" hidden>
+  <div class="chaos-overlay__label">
+    <span>Uncoordinated persistent UI — four independent widgets, no shared layer. For comparison only.</span>
+    <button id="chaosClose" class="btn btn--panel" type="button">Close comparison</button>
+  </div>
+  <div class="chaos-footer">
+    <span>Get $500 off your first service visit.</span>
+    <button type="button" tabindex="-1">Shop Offers</button>
+  </div>
+  <button class="chaos-chat" type="button" tabindex="-1" aria-label="Chat (demo only, not interactive)">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 4h16v12H7l-3 3V4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+  </button>
+  <div class="chaos-survey">
+    <span>Quick survey?</span>
+    <button type="button" tabindex="-1">Start</button>
+    <button type="button" tabindex="-1" aria-label="Dismiss survey (demo only, not interactive)">&times;</button>
+  </div>
+  <div class="chaos-cookie">
+    <span>We use cookies to improve your experience.</span>
+    <button type="button" tabindex="-1">OK</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     DEVICE FRAME PREVIEW
+     Opens a real, independently-rendered instance of this same
+     page at a common device viewport size.
+     ============================================================ -->
+<div id="frameOverlay" class="frame-overlay" hidden>
+  <div class="frame-overlay__bar">
+    <span id="frameOverlayLabel"></span>
+    <button id="frameOverlayClose" class="btn btn--panel" type="button">Close Preview</button>
+  </div>
+  <div class="frame-overlay__stage">
+    <div id="deviceBezel" class="device-bezel">
+      <iframe id="deviceFrame" class="device-bezel__frame" title="Device preview" src="about:blank"></iframe>
+    </div>
+  </div>
+</div>
 
 <script src="script.js"></script>
 </body>

@@ -7,6 +7,7 @@
   'use strict';
 
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const embedded = new URLSearchParams(location.search).get('embedded') === '1';
 
   /* ------------------------------------------------------------------ *
    * Reference data
@@ -98,7 +99,7 @@
       hint: 'Formula 1 | Explore the Team',
       version: 'v1',
       patch: {
-        legacyMode: false, scrollSpy: 'off',
+        legacyMode: false, scrollSpy: 'off', ctaStyle: 'text-link',
         primaryType: 'message-cta', primary: { message: 'Formula 1', cta: { label: 'Explore the Team' } },
         chat: 'off', search: 'off',
       },
@@ -109,7 +110,7 @@
       hint: 'Meet the V-ONE Concept | Explore',
       version: 'v1',
       patch: {
-        legacyMode: false, scrollSpy: 'off',
+        legacyMode: false, scrollSpy: 'off', ctaStyle: 'text-link',
         primaryType: 'message-cta', primary: { message: 'Meet the V-ONE Concept', cta: { label: 'Explore' } },
         chat: 'off', search: 'off',
       },
@@ -178,6 +179,17 @@
         triggerSurvey();
       },
     },
+    {
+      id: 'kitchen-sink',
+      label: 'Kitchen Sink (Overload)',
+      hint: 'Nav + Chat + Search all at once — the busy edge case',
+      version: 'edge-case',
+      patch: {
+        legacyMode: false, presentation: 'full-width', scrollSpy: 'navigation',
+        chat: 'suggested', search: 'compact',
+      },
+      note: 'Everything is asking for room at once. Try "Busy / Overflow Edge Cases" → Auto-collapse to compare raw overflow against priority-ordered collapsing.',
+    },
   ];
 
   /* ------------------------------------------------------------------ *
@@ -201,6 +213,11 @@
     activeSection: 'hero',
     primaryType: 'message-cta',
     primary: { message: 'Explore current offers on the Aurelia GT.', cta: { label: 'Shop Now' } },
+    ctaStyle: 'button',
+
+    autoCollapse: false,
+    navCollapsed: false,
+    utilitiesCollapsed: false,
 
     activePreset: 'current-state',
     scrollVisible: false,
@@ -246,6 +263,17 @@
   const $presetButtons = document.getElementById('presetButtons');
   const $eventLog = document.getElementById('eventLog');
   const $liveRegion = document.getElementById('liveRegion');
+  const $activeLayerReadout = document.getElementById('activeLayerReadout');
+
+  const $autoCollapseToggle = document.getElementById('autoCollapseToggle');
+  const $crowdingBadge = document.getElementById('crowdingBadge');
+
+  const $chaosOverlay = document.getElementById('chaosOverlay');
+
+  const $frameOverlay = document.getElementById('frameOverlay');
+  const $frameOverlayLabel = document.getElementById('frameOverlayLabel');
+  const $deviceBezel = document.getElementById('deviceBezel');
+  const $deviceFrame = document.getElementById('deviceFrame');
 
   /* ------------------------------------------------------------------ *
    * Event log
@@ -260,11 +288,36 @@
     li.append(time, label);
     $eventLog.appendChild(li);
     while ($eventLog.children.length > 60) $eventLog.removeChild($eventLog.firstElementChild);
+    renderActiveLayer();
   }
 
   document.getElementById('clearLog').addEventListener('click', () => {
     $eventLog.innerHTML = '';
   });
+
+  /* ------------------------------------------------------------------ *
+   * Active-layer readout — makes the priority model's current decision
+   * visible in real time, instead of only inferable from behavior.
+   * ------------------------------------------------------------------ */
+
+  function computeActiveLayerLabel() {
+    if (state.privacyActive) return 'Required UI — Privacy notice';
+    if (state.activeInteraction === 'chat') return 'Active interaction — Chat';
+    if (state.activeInteraction === 'search') return 'Active interaction — Search';
+    if (state.flyout === 'chat') return 'Requested utility — Chat prompts open';
+    if (state.flyout === 'search' || state.flyout === 'nav-overflow') return 'Requested utility — open';
+    if (state.surveyActive) return 'Survey / optional engagement';
+    if (state.scrollSpy === 'contextual') return `Contextual content — ${sectionLabel(state.activeSection)}`;
+    if (state.scrollSpy === 'navigation') return 'Contextual content — section navigation';
+    if (state.scrollSpy === 'orientation') return 'Contextual content — orientation';
+    if (state.pendingSurvey) return 'Primary content (survey waiting)';
+    return 'Primary persistent content';
+  }
+
+  function renderActiveLayer() {
+    if (!$activeLayerReadout) return;
+    $activeLayerReadout.innerHTML = `Active layer: <strong>${computeActiveLayerLabel()}</strong>`;
+  }
 
   /* ------------------------------------------------------------------ *
    * Sticky offset (adjusts when required UI like the privacy bar is shown)
@@ -370,7 +423,10 @@
     nav.className = 'primary-nav';
     nav.setAttribute('aria-label', 'Section navigation');
 
-    NAV_SECTIONS.forEach((s) => {
+    const activeMatch = NAV_SECTIONS.filter((s) => s.id === state.activeSection);
+    const items = state.navCollapsed ? (activeMatch.length ? activeMatch : [NAV_SECTIONS[0]]) : NAV_SECTIONS;
+
+    items.forEach((s) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = s.label;
@@ -381,7 +437,43 @@
       });
       nav.appendChild(btn);
     });
+
+    if (state.navCollapsed) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'primary-nav__more';
+      more.setAttribute('aria-haspopup', 'true');
+      more.textContent = 'More ▾';
+      more.addEventListener('click', () => openNavOverflow());
+      nav.appendChild(more);
+    }
+
     $primary.appendChild(nav);
+  }
+
+  function openNavOverflow() {
+    state.flyout = 'nav-overflow';
+    $flyout.hidden = false;
+    $flyout.innerHTML = '';
+    const title = document.createElement('p');
+    title.className = 'flyout-title';
+    title.textContent = 'More sections (collapsed to make room)';
+    $flyout.appendChild(title);
+    const chips = document.createElement('div');
+    chips.className = 'flyout-chips';
+    NAV_SECTIONS.forEach((s) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = s.label;
+      b.addEventListener('click', () => {
+        document.getElementById(s.id).scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+        log('section_changed', `nav overflow click → ${s.label}`);
+        closeFlyout();
+      });
+      chips.appendChild(b);
+    });
+    $flyout.appendChild(chips);
+    log('nav_overflow_opened');
   }
 
   function renderOrientationPrimary() {
@@ -472,13 +564,20 @@
     if (ctaLabel) {
       const cta = document.createElement('a');
       cta.href = (data.cta && data.cta.href) || '#shopping';
-      cta.className = 'btn btn--primary btn--small';
-      cta.textContent = ctaLabel;
       cta.addEventListener('click', () => log('cta_clicked', ctaLabel));
-      const wrap = document.createElement('div');
-      wrap.className = 'primary-ctas';
-      wrap.appendChild(cta);
-      $primary.appendChild(wrap);
+
+      if (state.ctaStyle === 'text-link') {
+        cta.className = 'cta-textlink';
+        cta.innerHTML = `${ctaLabel} <span aria-hidden="true">&rarr;</span>`;
+        $primary.appendChild(cta);
+      } else {
+        cta.className = 'btn btn--primary btn--small';
+        cta.textContent = ctaLabel;
+        const wrap = document.createElement('div');
+        wrap.className = 'primary-ctas';
+        wrap.appendChild(cta);
+        $primary.appendChild(wrap);
+      }
     }
   }
 
@@ -517,6 +616,7 @@
 
   function renderUtilities() {
     $utilities.innerHTML = '';
+    $utilities.classList.toggle('is-collapsed', state.utilitiesCollapsed);
     if (state.legacyMode) { closeFlyout(); return; }
 
     if (state.chat !== 'off') $utilities.appendChild(buildChatWidget());
@@ -724,6 +824,71 @@
   }
 
   /* ------------------------------------------------------------------ *
+   * Crowding / auto-collapse — the "busy edge case" mechanism.
+   * When several things want the same real estate, collapse the lowest
+   * priority content first (section navigation), then utilities, rather
+   * than letting the bar silently overflow or wrap.
+   * ------------------------------------------------------------------ */
+
+  function evaluateCrowding() {
+    requestAnimationFrame(() => {
+      if (!state.autoCollapse) {
+        const changed = state.navCollapsed || state.utilitiesCollapsed;
+        state.navCollapsed = false;
+        state.utilitiesCollapsed = false;
+        if (changed) { renderPrimary(); renderUtilities(); }
+        updateCrowdingBadge(false, 0);
+        return;
+      }
+
+      // Two checks, because flexbox hides crowding at different levels:
+      // section nav has its own overflow-x:auto so it silently absorbs
+      // excess pills via internal scroll rather than pushing its parent
+      // wider — that has to be measured on the nav element itself. Other
+      // compositions (message + CTA + utilities) don't have that internal
+      // escape hatch, so a real squeeze does show up as $stickyBar
+      // overflowing its own box.
+      const overflowing = () => {
+        const nav = $primary.querySelector('.primary-nav');
+        const navCrowded = nav ? nav.scrollWidth > nav.clientWidth + 1 : false;
+        const barCrowded = $stickyBar.scrollWidth > $stickyBar.clientWidth + 1;
+        return navCrowded || barCrowded;
+      };
+
+      if (overflowing() && !state.navCollapsed && state.scrollSpy === 'navigation') {
+        state.navCollapsed = true;
+        renderPrimary();
+      }
+      if (overflowing() && !state.utilitiesCollapsed) {
+        state.utilitiesCollapsed = true;
+        renderUtilities();
+      }
+
+      const collapsedCount = (state.navCollapsed ? 1 : 0) + (state.utilitiesCollapsed ? 1 : 0);
+      updateCrowdingBadge(overflowing(), collapsedCount);
+    });
+  }
+
+  function updateCrowdingBadge(isOverflowing, collapsedCount) {
+    if (!$crowdingBadge) return;
+    $crowdingBadge.classList.toggle('is-overflowing', isOverflowing);
+    if (isOverflowing) {
+      $crowdingBadge.textContent = collapsedCount > 0
+        ? `Still tight after collapsing ${collapsedCount} item${collapsedCount > 1 ? 's' : ''} — consider trimming utilities.`
+        : 'Overflowing — enable auto-collapse, or reduce nav/utilities.';
+    } else if (collapsedCount > 0) {
+      $crowdingBadge.textContent = `Fits — ${collapsedCount} lower-priority item${collapsedCount > 1 ? 's' : ''} collapsed to make room.`;
+    } else {
+      $crowdingBadge.textContent = 'Fits available space.';
+    }
+  }
+
+  $autoCollapseToggle.addEventListener('change', () => {
+    state.autoCollapse = $autoCollapseToggle.checked;
+    evaluateCrowding();
+  });
+
+  /* ------------------------------------------------------------------ *
    * Minimize / dismiss / restore
    * ------------------------------------------------------------------ */
 
@@ -883,6 +1048,8 @@
         renderPrimary();
       }
     }
+
+    evaluateCrowding();
   }
 
   window.addEventListener('scroll', onScroll, { passive: true });
@@ -904,6 +1071,7 @@
       dismissed: false,
       fullyDismissed: false,
       flyout: null,
+      ctaStyle: 'button',
     }, preset.patch);
 
     state.activePreset = id;
@@ -922,14 +1090,22 @@
     $liveRegion.textContent = msg;
   }
 
+  const VERSION_TAGS = {
+    today: { cls: 'tag--today', label: 'Today' },
+    v1: { cls: 'tag--v1', label: 'V1' },
+    v2: { cls: 'tag--v2', label: 'V2' },
+    'edge-case': { cls: 'tag--edge', label: 'Edge case' },
+  };
+
   function buildPresetButtons() {
     $presetButtons.innerHTML = '';
     PRESETS.forEach((preset) => {
+      const tag = VERSION_TAGS[preset.version];
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'preset-btn';
       btn.dataset.preset = preset.id;
-      btn.innerHTML = `<strong>${preset.label}</strong><span>${preset.hint}</span>`;
+      btn.innerHTML = `<strong>${preset.label}${tag ? ` <span class="tag ${tag.cls}">${tag.label}</span>` : ''}</strong><span>${preset.hint}</span>`;
       btn.addEventListener('click', () => applyPreset(preset.id));
       $presetButtons.appendChild(btn);
     });
@@ -952,12 +1128,20 @@
     state.presentation = r.value;
     log('sticky_variant_changed', 'presentation → ' + r.value);
     applyVisibility();
+    evaluateCrowding();
   }));
 
   radios('surface').forEach((r) => r.addEventListener('change', () => {
     if (!r.checked) return;
     state.surface = r.value;
     applyVisibility();
+  }));
+
+  radios('ctastyle').forEach((r) => r.addEventListener('change', () => {
+    if (!r.checked) return;
+    state.ctaStyle = r.value;
+    renderPrimary();
+    evaluateCrowding();
   }));
 
   radios('dismiss').forEach((r) => r.addEventListener('change', () => {
@@ -982,6 +1166,7 @@
     if (!r.checked) return;
     state.chat = r.value;
     renderUtilities();
+    evaluateCrowding();
   }));
 
   radios('device').forEach((r) => r.addEventListener('change', () => {
@@ -995,12 +1180,14 @@
     if (!r.checked) return;
     state.search = r.value;
     renderUtilities();
+    evaluateCrowding();
   }));
 
   radios('scrollspy').forEach((r) => r.addEventListener('change', () => {
     if (!r.checked) return;
     state.scrollSpy = r.value;
     renderPrimary();
+    evaluateCrowding();
   }));
 
   const $visibilitySelect = document.getElementById('visibilitySelect');
@@ -1082,7 +1269,7 @@
         break;
       case 6:
         applyPreset('stress-test');
-        openPanelSections([8]); // Orchestration Demos
+        openPanelSections([8, 9]); // Busy/Overflow Edge Cases, Orchestration Demos
         openPanel();
         break;
     }
@@ -1104,6 +1291,7 @@
   function syncControlsFromState() {
     setRadio('presentation', state.presentation);
     setRadio('surface', state.surface);
+    setRadio('ctastyle', state.ctaStyle);
     setRadio('dismiss', state.dismissMode);
     setRadio('message', state.messageMode);
     setRadio('chat', state.chat);
@@ -1114,6 +1302,139 @@
     markActivePresetButton();
     applyControlsVisibility();
   }
+
+  /* ------------------------------------------------------------------ *
+   * Uncoordinated chaos comparison
+   * ------------------------------------------------------------------ */
+
+  document.getElementById('triggerChaos').addEventListener('click', () => {
+    $chaosOverlay.hidden = false;
+    log('chaos_shown', 'uncoordinated comparison');
+  });
+  document.getElementById('chaosClose').addEventListener('click', () => {
+    $chaosOverlay.hidden = true;
+    log('chaos_closed');
+  });
+
+  /* ------------------------------------------------------------------ *
+   * Custom content override — preview alternate copy live
+   * ------------------------------------------------------------------ */
+
+  const $overrideMessage = document.getElementById('overrideMessage');
+  const $overrideCta = document.getElementById('overrideCta');
+
+  document.getElementById('applyOverride').addEventListener('click', () => {
+    const message = $overrideMessage.value.trim();
+    const ctaLabel = $overrideCta.value.trim();
+    if (!message && !ctaLabel) return;
+
+    const existing = state.primary || {};
+    state.primaryType = 'message-cta';
+    state.scrollSpy = 'off';
+    state.primary = {
+      message: message || existing.message || '',
+      cta: (ctaLabel || (existing.cta && existing.cta.label))
+        ? { label: ctaLabel || existing.cta.label, href: existing.cta && existing.cta.href }
+        : null,
+    };
+    renderPrimary();
+    evaluateCrowding();
+    log('content_override_applied', [message && `message: "${message}"`, ctaLabel && `cta: "${ctaLabel}"`].filter(Boolean).join(', '));
+  });
+
+  document.getElementById('clearOverride').addEventListener('click', () => {
+    $overrideMessage.value = '';
+    $overrideCta.value = '';
+    applyPreset(state.activePreset);
+    log('content_override_cleared');
+  });
+
+  /* ------------------------------------------------------------------ *
+   * Shareable configuration link
+   * ------------------------------------------------------------------ */
+
+  const PARAM_FIELD_MAP = {
+    pr: 'presentation', sf: 'surface', cs: 'ctaStyle', vis: 'visibility',
+    ent: 'entrance', dm: 'dismissMode', mm: 'messageMode',
+    ch: 'chat', se: 'search', dv: 'device', ss: 'scrollSpy',
+  };
+
+  function currentStateParams() {
+    const p = new URLSearchParams();
+    p.set('p', state.activePreset);
+    Object.entries(PARAM_FIELD_MAP).forEach(([key, field]) => p.set(key, state[field]));
+    if (state.visibility === 'section-reach') p.set('srt', state.sectionReachTarget);
+    return p;
+  }
+
+  function applyParamsToState(params) {
+    const presetId = params.get('p');
+    if (!PRESETS.some((preset) => preset.id === presetId)) return false;
+    applyPreset(presetId);
+    Object.entries(PARAM_FIELD_MAP).forEach(([key, field]) => { if (params.has(key)) state[field] = params.get(key); });
+    if (params.has('srt')) state.sectionReachTarget = params.get('srt');
+    syncControlsFromState();
+    fullRender();
+    evaluateScroll();
+    return true;
+  }
+
+  document.getElementById('copyLinkBtn').addEventListener('click', async (e) => {
+    const url = `${location.origin}${location.pathname}?${currentStateParams().toString()}`;
+    const btn = e.currentTarget;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch (err) {
+      window.prompt('Copy this link:', url);
+    }
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = original; }, 1500);
+    log('link_copied');
+  });
+
+  /* ------------------------------------------------------------------ *
+   * Device frame preview — a real, independently-rendered instance of
+   * this page at common device viewport sizes.
+   * ------------------------------------------------------------------ */
+
+  const DEVICE_DIMS = {
+    apple: { w: 390, h: 844, label: 'iPhone (Apple)' },
+    android: { w: 412, h: 915, label: 'Android' },
+    desktop: { w: 1280, h: 800, label: 'Desktop' },
+  };
+
+  function openFramePreview(device) {
+    const dims = DEVICE_DIMS[device];
+    if (!dims) return;
+    $deviceBezel.dataset.device = device;
+    $deviceBezel.style.width = dims.w + 'px';
+    $deviceBezel.style.height = dims.h + 'px';
+    const scale = Math.min(1, (window.innerWidth - 80) / dims.w, (window.innerHeight - 140) / dims.h);
+    $deviceBezel.style.transform = `scale(${scale})`;
+    $frameOverlayLabel.textContent = `${dims.label} · ${dims.w}×${dims.h}`;
+    $deviceFrame.src = `index.html?embedded=1&${currentStateParams().toString()}`;
+    $frameOverlay.hidden = false;
+    document.getElementById('frameOverlayClose').focus();
+    log('device_frame_opened', device);
+  }
+
+  function closeFramePreview() {
+    $frameOverlay.hidden = true;
+    $deviceFrame.src = 'about:blank';
+    log('device_frame_closed');
+  }
+
+  document.querySelectorAll('[data-frame]').forEach((btn) => {
+    btn.addEventListener('click', () => openFramePreview(btn.dataset.frame));
+  });
+  document.getElementById('frameOverlayClose').addEventListener('click', closeFramePreview);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!$frameOverlay.hidden) closeFramePreview();
+    else if (!$chaosOverlay.hidden) { $chaosOverlay.hidden = true; log('chaos_closed'); }
+  });
 
   /* ------------------------------------------------------------------ *
    * Panel open/close
@@ -1137,11 +1458,14 @@
    * ------------------------------------------------------------------ */
 
   function fullRender() {
+    state.navCollapsed = false;
+    state.utilitiesCollapsed = false;
     renderPrimary();
     renderUtilities();
     applyVisibility();
     applyControlsVisibility();
     setupRotationTimer();
+    evaluateCrowding();
   }
 
   /* ------------------------------------------------------------------ *
@@ -1149,10 +1473,21 @@
    * ------------------------------------------------------------------ */
 
   buildPresetButtons();
-  syncControlsFromState();
-  fullRender();
-  evaluateScroll();
+
+  const initialParams = new URLSearchParams(location.search);
+  if (!applyParamsToState(initialParams)) {
+    syncControlsFromState();
+    fullRender();
+    evaluateScroll();
+  }
   updateStickyOffset();
 
   window.addEventListener('resize', updateStickyOffset);
+
+  // Embedded device-frame preview: a real instance of this same page,
+  // stripped of the dev-only chrome so it reads as a clean customer view.
+  if (embedded) {
+    $panelToggle.remove();
+    $panel.remove();
+  }
 })();
