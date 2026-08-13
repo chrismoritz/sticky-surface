@@ -135,8 +135,33 @@ what's actually being proposed for the next release vs. what's exploratory.
 Nothing here implies the platform team should build all of this at once —
 that separation is the point of the demo.
 
+## Content-driven layout
+
+Content is centered as one balanced cluster within the bar (primary +
+utilities + controls together), rather than the more common navbar pattern
+of primary content pinned left and utilities pushed to the far right —
+short compositions like "Schedule a Test Drive | Ask a Question" now read
+as one connected unit instead of two things awkwardly far apart, which
+was part of the original brief's point.
+
+Floating and Compact/pill go a step further: the surface itself sizes to
+its content (capped at a sane max-width for busy compositions) instead of
+occupying a fixed-width box regardless of how little it holds. Search
+Utility is the deliberate exception — its field still stretches to fill
+available width, since a search box is meant to invite typing, not hug
+itself into a chip.
+
 ## Notable UX/technical calls worth flagging to stakeholders
 
+- **Very content-heavy compositions in Floating at extreme mobile widths
+  can still run out of room.** "Schedule a Test Drive" + a full "Ask a
+  question" field is a lot to ask a ~360px-wide floating card to hold.
+  Text now shrinks and truncates with an ellipsis rather than overflowing
+  or bleeding outside the card, but that's a graceful failure, not a
+  design recommendation — the "Mobile Compact" preset (shorter copy: "Test
+  Drive" + a chat icon) is the actual intended pattern for narrow
+  viewports, exactly as the original brief called out (composition should
+  change by breakpoint, not just shrink in place).
 - **The control panel occupies real screen width when open.** On a
   full-width bar at desktop sizes, an open drawer can sit over the right
   end of the bar (its own minimize/dismiss controls). That's expected drawer

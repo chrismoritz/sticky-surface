@@ -242,21 +242,41 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   background: var(--paper);
   color: var(--ink);
   border-top: 1px solid var(--line);
+  /* Belt-and-suspenders: an extremely content-heavy composition at a very
+     narrow width can still ask for more than is available even after
+     shrink/ellipsis rules apply. Clipping at the card's own edge keeps
+     that failure contained and legible rather than bleeding text outside
+     the rounded card. */
+  overflow: hidden;
 }
 
 .sticky__bar {
   display: flex;
   align-items: center;
+  justify-content: safe center;
   gap: 16px;
   padding: 14px 24px;
   padding-bottom: max(14px, env(safe-area-inset-bottom));
   min-height: 30px;
 }
 
+/* Primary doesn't grow to fill leftover space by default — that's what let
+   it drag utilities off to a far edge before. Content (primary + utilities
+   + controls) sizes to itself and centers as one cluster via the bar's
+   justify-content. It still shrinks under crowding (min-width:0), so the
+   auto-collapse measurement in script.js is unaffected. The search-inline
+   composition opts back into filling available width via .is-fluid, since
+   a search field is meant to stretch, not hug. */
 .sticky__primary {
-  display: flex; align-items: center; gap: 14px; flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; justify-content: safe center; gap: 14px;
+  flex: 0 1 auto; min-width: 0;
 }
-.sticky__utilities { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.sticky__primary.is-fluid { flex: 1 1 auto; }
+/* flex-shrink (not 0) so utilities share a real space deficit with primary
+   instead of forcing primary to absorb the entire squeeze alone — without
+   this, primary could get crushed to near-zero while utilities stayed at
+   full natural width regardless of how little room was actually available. */
+.sticky__utilities { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
 .sticky__controls { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; margin-left: 4px; }
 
 /* Visibility + entrance */
@@ -295,7 +315,8 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   padding: 0 20px 20px;
 }
 .sticky[data-presentation="floating"] .sticky__surface {
-  max-width: 620px;
+  width: auto;
+  max-width: min(640px, calc(100vw - 40px));
   margin: 0 auto;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
@@ -310,6 +331,7 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 }
 .sticky[data-presentation="compact"] .sticky__surface {
   width: auto;
+  max-width: min(560px, calc(100vw - 32px));
   border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-elevated);
@@ -337,7 +359,10 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 
 .primary-message { margin: 0; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .primary-ctas { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.primary-ctas .btn { flex: 0 0 auto; }
+.primary-ctas .btn {
+  flex: 0 1 auto; min-width: 0; justify-content: flex-start;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .primary-nav { display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .primary-nav::-webkit-scrollbar { display: none; }
@@ -354,9 +379,9 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .primary-nav__more:hover { color: var(--ink); background: var(--mist); }
 
 .cta-textlink {
-  display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0;
   color: var(--ink); font-weight: 600; font-size: .9rem; text-decoration: underline; text-underline-offset: 3px;
-  white-space: nowrap;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .cta-textlink:hover { opacity: .7; }
 
@@ -385,7 +410,7 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .rotator__btn:hover { background: var(--mist); }
 
 /* Search inline (primary = search itself) */
-.primary-search-inline { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; }
+.primary-search-inline { display: flex; align-items: center; justify-content: safe center; gap: 10px; flex: 1 1 auto; }
 .primary-search-inline .search-field { flex: 1 1 auto; max-width: 460px; }
 
 /* Survey composition */
@@ -494,7 +519,7 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 @media (max-width: 720px) {
   .sticky__bar { padding: 12px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom)); gap: 10px; }
   .sticky[data-presentation="floating"] { padding: 0 12px 14px; }
-  .sticky[data-presentation="floating"] .sticky__surface { max-width: none; }
+  .sticky[data-presentation="floating"] .sticky__surface { max-width: calc(100vw - 24px); }
   .sticky[data-presentation="compact"] { padding: 0 12px 14px; }
   .primary-message { font-size: .88rem; }
   .chat-input-field, .search-field { min-width: 0; }

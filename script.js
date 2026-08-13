@@ -381,6 +381,7 @@
 
   function renderPrimary() {
     $primary.innerHTML = '';
+    $primary.classList.toggle('is-fluid', !state.surveyActive && state.scrollSpy === 'off' && state.primaryType === 'search-inline');
 
     if (state.surveyActive) return renderSurveyPrimary();
     if (state.scrollSpy === 'navigation') return renderNavPrimary();
