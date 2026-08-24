@@ -282,9 +282,9 @@
       <summary>Visibility &amp; Entrance <span class="tag tag--v1">V1</span></summary>
       <label class="panel__field">Show when
         <select id="visibilitySelect">
-          <option value="always">Always visible</option>
+          <option value="always" selected>Always visible</option>
           <option value="scroll10">After 10% scroll</option>
-          <option value="scroll25" selected>After 25% scroll</option>
+          <option value="scroll25">After 25% scroll</option>
           <option value="hero-exit">After hero leaves viewport</option>
           <option value="section-reach">Reaching a selected section</option>
         </select>
@@ -504,6 +504,32 @@
     <div id="deviceBezel" class="device-bezel">
       <iframe id="deviceFrame" class="device-bezel__frame" title="Device preview" src="about:blank"></iframe>
     </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     CORNER CHAT WINDOW
+     The conventional bottom-right pinned chat window that the sticky
+     bar's "Ask a question" field hands off to — the field is an entry
+     point, the conversation itself happens here, like a typical
+     Intercom/Drift-style widget.
+     ============================================================ -->
+<div id="chatWindow" class="chat-window" hidden role="dialog" aria-label="Chat">
+  <div class="chat-window__header">
+    <div class="chat-window__title">
+      <span class="chat-window__avatar" aria-hidden="true"></span>
+      <span>Solstice Assistant</span>
+    </div>
+    <button id="chatWindowClose" class="sticky__icon-btn" type="button" aria-label="Close chat">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="chat-window__messages" id="chatWindowMessages"></div>
+  <div class="chat-window__composer">
+    <input type="text" id="chatWindowInput" placeholder="Type a message…" aria-label="Type a message">
+    <button id="chatWindowSend" type="button" aria-label="Send message (mock)">
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 12h16M14 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
   </div>
 </div>
 

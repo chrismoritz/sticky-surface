@@ -120,6 +120,37 @@ The same mechanism drives "Dismissible + restore" mode, since a dismiss
 recovery affordance is conceptually the same collapse/expand behavior as
 minimize.
 
+## Always visible by default
+
+Every Demo Flow step and the initial page load now default to **Always
+visible** rather than requiring a scroll first — the point of the flow is
+telling the story in a few clicks, and waiting on a scroll threshold before
+the thing you're demoing even appears got in the way of that. The scroll-
+triggered visibility modes (10%/25% scroll, after hero, on section reach)
+are still there in the panel for anyone who wants to show that behavior
+specifically — the default just isn't gating the rest of the demo on it
+anymore.
+
+## The chat input hands off to a real chat window
+
+Wherever the sticky bar shows the "Ask a question" input field (Tesla-
+Inspired, Stress Test, Kitchen Sink, or the Chat Demo's "Ask a Question"
+mode), its send button no longer just logs a mock event — it opens a
+conventional bottom-right corner chat window, the way a real product would
+hand off from a persistent-surface entry point to an actual conversation
+surface (think Intercom/Drift). Whatever was typed in the sticky bar
+becomes the first message; the window then runs a small mock back-and-forth
+(canned replies, no backend) so it reads as alive rather than static. The
+sticky bar's own field clears and the window's composer takes focus, so
+typing continues uninterrupted.
+
+This slots into the existing priority model rather than sitting outside
+it: the window counts as an **active interaction** for as long as it's
+open, so triggering Survey while it's open defers exactly the way it does
+for the inline chat field, and the panel's Active Layer readout reflects
+it. Pressing Enter in either the sticky bar's field or the window's own
+composer submits, matching how a chat input is expected to behave.
+
 ## Busy / overflow edge cases
 
 Two ways to show what happens when several things want the same real estate:

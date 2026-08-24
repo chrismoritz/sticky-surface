@@ -55,6 +55,13 @@
     'Find a dealer',
   ];
 
+  const CHAT_WINDOW_GREETING = "Hi! I'm here to help with anything about the Aurelia GT — test drives, trims, or your nearest dealer.";
+  const CHAT_WINDOW_REPLIES = [
+    'Got it — let me pull that up for you.',
+    "Good question. I'll connect you with a product specialist who can go deeper.",
+    "Thanks, I've noted that down.",
+  ];
+
   const INVENTORY = [
     '2026 Aurelia GT — Slate Grey, RWD',
     '2026 Aurelia GT — Performance, AWD',
@@ -208,7 +215,7 @@
     legacyMode: true,
     presentation: 'full-width',
     surface: 'opaque',
-    visibility: 'scroll25',
+    visibility: 'always',
     sectionReachTarget: 'design',
     entrance: 'fade',
     animSpeed: 'standard',
@@ -237,6 +244,9 @@
 
     activeInteraction: null, // 'chat' | 'search' | null
     flyout: null, // 'chat' | 'search' | null
+
+    chatWindowOpen: false,
+    chatWindowMessages: [],
 
     privacyActive: false,
     surveyActive: false,
@@ -286,6 +296,12 @@
   const $deviceBezel = document.getElementById('deviceBezel');
   const $deviceFrame = document.getElementById('deviceFrame');
 
+  const $chatWindow = document.getElementById('chatWindow');
+  const $chatWindowMessages = document.getElementById('chatWindowMessages');
+  const $chatWindowInput = document.getElementById('chatWindowInput');
+  const $chatWindowSend = document.getElementById('chatWindowSend');
+  const $chatWindowClose = document.getElementById('chatWindowClose');
+
   /* ------------------------------------------------------------------ *
    * Event log
    * ------------------------------------------------------------------ */
@@ -313,7 +329,7 @@
 
   function computeActiveLayerLabel() {
     if (state.privacyActive) return 'Required UI — Privacy notice';
-    if (state.activeInteraction === 'chat') return 'Active interaction — Chat';
+    if (state.activeInteraction === 'chat' || state.chatWindowOpen) return 'Active interaction — Chat';
     if (state.activeInteraction === 'search') return 'Active interaction — Search';
     if (state.flyout === 'chat') return 'Requested utility — Chat prompts open';
     if (state.flyout === 'search' || state.flyout === 'nav-overflow') return 'Requested utility — open';
@@ -703,9 +719,18 @@
 
     const send = document.createElement('button');
     send.type = 'button';
-    send.setAttribute('aria-label', 'Send message (mock)');
+    send.setAttribute('aria-label', 'Send message — opens chat window');
     send.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 12h16M14 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    send.addEventListener('click', () => log('cta_clicked', 'chat_send (mock)'));
+    const handoff = () => {
+      const text = input.value.trim();
+      log('cta_clicked', 'chat_send (mock)');
+      openChatWindow(text || null);
+      input.value = '';
+    };
+    send.addEventListener('click', handoff);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); handoff(); }
+    });
     field.appendChild(send);
 
     if (state.device === 'apple') {
@@ -720,6 +745,82 @@
 
     return field;
   }
+
+  /* ------------------------------------------------------------------ *
+   * Corner chat window — a conventional bottom-right widget that the
+   * sticky bar's "Ask a question" field hands off to, rather than trying
+   * to hold a whole conversation inline in the persistent surface.
+   * ------------------------------------------------------------------ */
+
+  let chatReplyIndex = 0;
+
+  function openChatWindow(initialMessage) {
+    if (!state.chatWindowOpen) {
+      state.chatWindowOpen = true;
+      if (state.chatWindowMessages.length === 0) pushChatWindowMessage('assistant', CHAT_WINDOW_GREETING);
+      $chatWindow.hidden = false;
+      $chatWindow.classList.remove('is-entering');
+      if (!prefersReducedMotion) {
+        void $chatWindow.offsetWidth;
+        $chatWindow.classList.add('is-entering');
+      }
+      log('chat_opened', 'corner window');
+    }
+    if (initialMessage) {
+      pushChatWindowMessage('user', initialMessage);
+      respondInChatWindow();
+    }
+    renderChatWindowMessages();
+    requestAnimationFrame(() => $chatWindowInput.focus());
+  }
+
+  function closeChatWindow() {
+    state.chatWindowOpen = false;
+    $chatWindow.hidden = true;
+    log('chat_closed', 'corner window');
+    maybeReleasePendingSurvey();
+  }
+
+  function pushChatWindowMessage(from, text) {
+    state.chatWindowMessages.push({ from, text });
+  }
+
+  function respondInChatWindow() {
+    const reply = CHAT_WINDOW_REPLIES[chatReplyIndex % CHAT_WINDOW_REPLIES.length];
+    chatReplyIndex += 1;
+    setTimeout(() => {
+      if (!state.chatWindowOpen) return;
+      pushChatWindowMessage('assistant', reply);
+      renderChatWindowMessages();
+    }, 500);
+  }
+
+  function renderChatWindowMessages() {
+    $chatWindowMessages.innerHTML = '';
+    state.chatWindowMessages.forEach((m) => {
+      const div = document.createElement('div');
+      div.className = 'chat-window__msg chat-window__msg--' + m.from;
+      div.textContent = m.text;
+      $chatWindowMessages.appendChild(div);
+    });
+    $chatWindowMessages.scrollTop = $chatWindowMessages.scrollHeight;
+  }
+
+  function submitChatWindowMessage() {
+    const text = $chatWindowInput.value.trim();
+    if (!text) return;
+    pushChatWindowMessage('user', text);
+    $chatWindowInput.value = '';
+    renderChatWindowMessages();
+    respondInChatWindow();
+    log('cta_clicked', 'chat_window_send (mock)');
+  }
+
+  $chatWindowSend.addEventListener('click', submitChatWindowMessage);
+  $chatWindowInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submitChatWindowMessage(); }
+  });
+  $chatWindowClose.addEventListener('click', closeChatWindow);
 
   function buildSearchWidget() {
     if (state.search === 'compact') return buildSearchField('Search');
@@ -944,7 +1045,7 @@
       log('survey_triggered', 'waiting — privacy notice active');
       return;
     }
-    if (state.activeInteraction === 'chat') {
+    if (state.activeInteraction === 'chat' || state.chatWindowOpen) {
       state.pendingSurvey = true;
       log('survey_triggered', 'waiting — chat in use');
       return;
@@ -977,7 +1078,7 @@
   }
 
   function maybeReleasePendingSurvey() {
-    if (state.pendingSurvey && !state.privacyActive && state.activeInteraction !== 'chat') {
+    if (state.pendingSurvey && !state.privacyActive && state.activeInteraction !== 'chat' && !state.chatWindowOpen) {
       state.pendingSurvey = false;
       triggerSurvey();
     }
@@ -1270,8 +1371,8 @@
         state.presentation = 'floating';
         setRadio('chat', 'question');
         state.chat = 'question';
-        setSelect('visibilitySelect', 'scroll25');
-        state.visibility = 'scroll25';
+        setSelect('visibilitySelect', 'always');
+        state.visibility = 'always';
         renderUtilities();
         applyVisibility();
         break;
