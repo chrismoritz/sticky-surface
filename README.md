@@ -218,12 +218,13 @@ itself into a chip.
   Drive" + a chat icon) is the actual intended pattern for narrow
   viewports, exactly as the original brief called out (composition should
   change by breakpoint, not just shrink in place).
-- **The control panel occupies real screen width when open.** On a
-  full-width bar at desktop sizes, an open drawer can sit over the right
-  end of the bar (its own minimize/dismiss controls). That's expected drawer
-  behavior for a dev tool — close the panel to show the clean customer view
-  — but it's worth calling out explicitly so nobody mistakes it for a
-  production layout bug.
+- **The control panel occupies real screen width when open.** It lives
+  top-left and stops 150px short of the viewport bottom specifically so it
+  never covers the sticky footer, across every presentation — but it still
+  covers the left portion of the page content behind it while open. That's
+  expected drawer behavior for a dev tool — close the panel to show the
+  full clean customer view — but it's worth calling out explicitly so
+  nobody mistakes it for a production layout bug.
 - **Priority model is intentionally simple.** The demo hard-codes exactly
   one deferral rule set (privacy blocks survey; active chat blocks survey)
   to make the "coordinated system, not competing z-indexes" argument

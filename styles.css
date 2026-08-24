@@ -607,7 +607,7 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
    ========================================================================== */
 
 .panel-toggle {
-  position: fixed; top: 18px; right: 18px; z-index: 650;
+  position: fixed; top: 74px; left: 18px; z-index: 650;
   display: flex; align-items: center; gap: 8px;
   background: #17181c; color: #fff; border: 1px solid #33343a;
   padding: 10px 16px; border-radius: var(--radius-pill);
@@ -620,14 +620,21 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .panel-toggle__dot { width: 7px; height: 7px; border-radius: 50%; background: #5eff9a; display: inline-block; }
 
 .panel {
-  position: fixed; top: 0; right: 0; bottom: 0; z-index: 649;
+  position: fixed; top: 0; left: 0; z-index: 649;
+  /* Stops short of the viewport bottom — reserved space keeps the drawer
+     from ever covering the customer-facing sticky footer beneath it,
+     across every presentation (full-width, floating, compact) and even
+     the busiest compositions. The panel itself follows the same
+     "don't overlap persistent UI" principle it's demonstrating. */
+  bottom: 150px;
   width: 380px; max-width: 92vw;
   background: #131418; color: #e7e7ea;
   box-shadow: var(--shadow-panel);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   display: flex; flex-direction: column;
   font-family: "SFMono-Regular", Consolas, Menlo, monospace;
   transform: translateX(0);
-  border-left: 1px solid #2a2b31;
+  border-right: 1px solid #2a2b31;
 }
 .panel[hidden] { display: none; }
 
