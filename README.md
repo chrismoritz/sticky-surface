@@ -151,6 +151,29 @@ for the inline chat field, and the panel's Active Layer readout reflects
 it. Pressing Enter in either the sticky bar's field or the window's own
 composer submits, matching how a chat input is expected to behave.
 
+## The floating panel expands before it ever collapses anything
+
+Floating panels default to a compact width, but they aren't locked to it.
+When content is too crowded for the default cap, the panel first tries the
+option that costs nothing — taking more width, if the viewport actually
+has room to give — before any collapse logic even runs. Apply "Kitchen
+Sink (Overload)" in Floating presentation on a wide-enough window and
+watch the panel visibly grow to fit nav + Chat + Search rather than
+immediately shrinking anything; switch back to a simple preset and it
+animates back down to compact, since holding onto extra width it no
+longer needs isn't "opportunistic" either.
+
+This is deliberately **not** gated behind the Auto-collapse toggle the way
+nav/utilities collapsing is: expanding the container can't hide or lose
+any content the way collapsing can, so there's no tradeoff to make it
+opt-in — it's just a better default. Collapse is still there as the
+fallback for when even the expanded width isn't enough (a narrow viewport
+genuinely has nowhere further to give), which is why Kitchen Sink at a
+narrow width still ends up demonstrating both mechanics in sequence: it
+expands as far as the viewport allows, and only turns to collapsing nav/
+utilities if that still isn't sufficient. The crowding badge names which
+of the two actually resolved it.
+
 ## Busy / overflow edge cases
 
 Two ways to show what happens when several things want the same real estate:

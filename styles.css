@@ -366,7 +366,8 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 
 @media (prefers-reduced-motion: reduce) {
   .sticky__collapse, .sticky__restore-collapse,
-  .sticky__bar, .sticky__flyout, .sticky__restore, .sticky__restore-handle {
+  .sticky__bar, .sticky__flyout, .sticky__restore, .sticky__restore-handle,
+  .sticky__surface {
     transition: none !important;
   }
 }
@@ -390,6 +391,16 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-elevated);
+  transition: max-width var(--dur-med) var(--ease);
+}
+/* Opportunistic expansion: when content is too crowded for the default
+   cap, script.js flips this on. min(920px, 100vw-24px) is mathematically
+   guaranteed to be >= the default cap at every viewport width (it's the
+   default's own formula plus a flat 16px of extra headroom before either
+   branch's ceiling takes over), so switching it on can only ever gain
+   room, never shrink the panel. */
+.sticky[data-presentation="floating"][data-expanded="true"] .sticky__surface {
+  max-width: min(920px, calc(100vw - 24px));
 }
 .sticky[data-presentation="floating"] .sticky__bar { padding: 12px 18px; }
 

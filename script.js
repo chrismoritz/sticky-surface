@@ -223,6 +223,7 @@
     autoCollapse: false,
     navCollapsed: false,
     utilitiesCollapsed: false,
+    floatingExpanded: false,
 
     activePreset: 'current-state',
     scrollVisible: false,
@@ -949,8 +950,41 @@
    * than letting the bar silently overflow or wrap.
    * ------------------------------------------------------------------ */
 
+  // Two checks, because flexbox hides crowding at different levels: section
+  // nav has its own overflow-x:auto so it silently absorbs excess pills via
+  // internal scroll rather than pushing its parent wider — that has to be
+  // measured on the nav element itself. Other compositions (message + CTA +
+  // utilities) don't have that internal escape hatch, so a real squeeze
+  // shows up as $stickyBar overflowing its own box.
+  function barIsOverflowing() {
+    const nav = $primary.querySelector('.primary-nav');
+    const navCrowded = nav ? nav.scrollWidth > nav.clientWidth + 1 : false;
+    const barCrowded = $stickyBar.scrollWidth > $stickyBar.clientWidth + 1;
+    return navCrowded || barCrowded;
+  }
+
+  function getDurMedMs() {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--dur-med');
+    return parseFloat(raw) || 260;
+  }
+
   function evaluateCrowding() {
     requestAnimationFrame(() => {
+      // Opportunistic expansion (floating only): let the panel take more
+      // width before ever hiding content. Always on, independent of the
+      // Auto-collapse toggle below — growing the container can't lose
+      // information the way collapsing content can, so there's no tradeoff
+      // to gate behind a demo switch.
+      if (state.presentation === 'floating' && !state.floatingExpanded && barIsOverflowing()) {
+        state.floatingExpanded = true;
+        $sticky.dataset.expanded = 'true';
+        log('sticky_variant_changed', 'floating panel expanded for content');
+        // The width transition needs to settle before collapse decisions
+        // below can trust the layout, so re-run this check once it has.
+        setTimeout(evaluateCrowding, getDurMedMs() + 40);
+        return;
+      }
+
       if (!state.autoCollapse) {
         const changed = state.navCollapsed || state.utilitiesCollapsed;
         state.navCollapsed = false;
@@ -960,45 +994,32 @@
         return;
       }
 
-      // Two checks, because flexbox hides crowding at different levels:
-      // section nav has its own overflow-x:auto so it silently absorbs
-      // excess pills via internal scroll rather than pushing its parent
-      // wider — that has to be measured on the nav element itself. Other
-      // compositions (message + CTA + utilities) don't have that internal
-      // escape hatch, so a real squeeze does show up as $stickyBar
-      // overflowing its own box.
-      const overflowing = () => {
-        const nav = $primary.querySelector('.primary-nav');
-        const navCrowded = nav ? nav.scrollWidth > nav.clientWidth + 1 : false;
-        const barCrowded = $stickyBar.scrollWidth > $stickyBar.clientWidth + 1;
-        return navCrowded || barCrowded;
-      };
-
-      if (overflowing() && !state.navCollapsed && state.scrollSpy === 'navigation') {
+      if (barIsOverflowing() && !state.navCollapsed && state.scrollSpy === 'navigation') {
         state.navCollapsed = true;
         renderPrimary();
       }
-      if (overflowing() && !state.utilitiesCollapsed) {
+      if (barIsOverflowing() && !state.utilitiesCollapsed) {
         state.utilitiesCollapsed = true;
         renderUtilities();
       }
 
       const collapsedCount = (state.navCollapsed ? 1 : 0) + (state.utilitiesCollapsed ? 1 : 0);
-      updateCrowdingBadge(overflowing(), collapsedCount);
+      updateCrowdingBadge(barIsOverflowing(), collapsedCount);
     });
   }
 
   function updateCrowdingBadge(isOverflowing, collapsedCount) {
     if (!$crowdingBadge) return;
     $crowdingBadge.classList.toggle('is-overflowing', isOverflowing);
+    const expandedNote = state.floatingExpanded ? ' Floating panel expanded to make room.' : '';
     if (isOverflowing) {
       $crowdingBadge.textContent = collapsedCount > 0
-        ? `Still tight after collapsing ${collapsedCount} item${collapsedCount > 1 ? 's' : ''} — consider trimming utilities.`
-        : 'Overflowing — enable auto-collapse, or reduce nav/utilities.';
+        ? `Still tight after collapsing ${collapsedCount} item${collapsedCount > 1 ? 's' : ''} — consider trimming utilities.${expandedNote}`
+        : `Overflowing — enable auto-collapse, or reduce nav/utilities.${expandedNote}`;
     } else if (collapsedCount > 0) {
-      $crowdingBadge.textContent = `Fits — ${collapsedCount} lower-priority item${collapsedCount > 1 ? 's' : ''} collapsed to make room.`;
+      $crowdingBadge.textContent = `Fits — ${collapsedCount} lower-priority item${collapsedCount > 1 ? 's' : ''} collapsed to make room.${expandedNote}`;
     } else {
-      $crowdingBadge.textContent = 'Fits available space.';
+      $crowdingBadge.textContent = state.floatingExpanded ? 'Fits — floating panel expanded to make room.' : 'Fits available space.';
     }
   }
 
@@ -1599,6 +1620,8 @@
   function fullRender() {
     state.navCollapsed = false;
     state.utilitiesCollapsed = false;
+    state.floatingExpanded = false;
+    $sticky.dataset.expanded = 'false';
     renderPrimary();
     renderUtilities();
     applyVisibility();
