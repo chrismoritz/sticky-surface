@@ -42,8 +42,8 @@ Flow** buttons at the top walk through the pitch in order:
    "Schedule a Test Drive" and an inline "Ask a Question" chat field living
    in one coordinated surface.
 3. **Flexibility** — jump into the preset list and click through Search
-   Inventory, Brand Story (F1), Concept Vehicle, and the various Chat/Search
-   entry points. Same component, new content every time.
+   Inventory, Brand Story (F1), and the various Chat/Search entry points.
+   Same component, new content every time.
 4. **Presentation** — toggle Full-width / Floating / Compact and the three
    surface finishes (opaque, translucent/blur, bordered) to show the same
    component adapting its shell.

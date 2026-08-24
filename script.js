@@ -120,17 +120,6 @@
       },
     },
     {
-      id: 'concept-vehicle',
-      label: 'Concept Vehicle',
-      hint: 'Meet the V-ONE Concept | Explore',
-      version: 'v1',
-      patch: {
-        legacyMode: false, scrollSpy: 'off', ctaStyle: 'text-link',
-        primaryType: 'message-cta', primary: { message: 'Meet the V-ONE Concept', cta: { label: 'Explore' } },
-        chat: 'off', search: 'off',
-      },
-    },
-    {
       id: 'search-utility',
       label: 'Search Utility',
       hint: 'Search [input field]',
@@ -678,6 +667,8 @@
         log('chat_opened', state.chat);
         if (state.chat === 'suggested') {
           openFlyout('chat');
+        } else if (state.chat === 'label') {
+          openChatWindow();
         }
       });
       wrap.appendChild(btn);
@@ -1380,7 +1371,7 @@
         applyPreset('brand-story');
         openPanelSections([0]); // Content Presets
         openPanel();
-        announce('Try the preset buttons to swap Search Inventory, F1, Concept, Chat, or Search.');
+        announce('Try the preset buttons to swap Search Inventory, F1, Chat, or Search.');
         break;
       case 4:
         setRadio('presentation', 'compact');
