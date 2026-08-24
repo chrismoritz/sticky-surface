@@ -609,13 +609,13 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .panel-toggle {
   position: fixed; top: 74px; left: 18px; z-index: 650;
   display: flex; align-items: center; gap: 8px;
-  background: #17181c; color: #fff; border: 1px solid #33343a;
+  background: var(--accent); color: #fff; border: 1px solid var(--accent-ink);
   padding: 10px 16px; border-radius: var(--radius-pill);
   font: inherit; font-size: .8rem; font-weight: 600; letter-spacing: .02em;
   cursor: pointer; box-shadow: var(--shadow-elevated);
   font-family: "SFMono-Regular", Consolas, Menlo, monospace;
 }
-.panel-toggle:hover { background: #24252b; }
+.panel-toggle:hover { background: var(--accent-ink); }
 .panel-toggle[hidden] { display: none; }
 .panel-toggle__dot { width: 7px; height: 7px; border-radius: 50%; background: #5eff9a; display: inline-block; }
 

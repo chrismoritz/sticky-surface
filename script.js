@@ -348,6 +348,18 @@
    * Rendering: the sticky bar shell (presentation, visibility, surface)
    * ------------------------------------------------------------------ */
 
+  // Removes + re-adds the entrance class (with a forced reflow in between)
+  // so the CSS animation restarts. Used both when the component newly
+  // becomes visible and when a preset changes while it's already visible —
+  // replaying the entrance is a deliberate cue that the content changed.
+  function triggerEntrance() {
+    $sticky.classList.remove('enter-fade', 'enter-slide');
+    if (!prefersReducedMotion && state.entrance !== 'none') {
+      void $sticky.offsetWidth;
+      $sticky.classList.add(state.entrance === 'slide' ? 'enter-slide' : 'enter-fade');
+    }
+  }
+
   function applyVisibility() {
     // "shouldShow" governs whether the component occupies the persistent
     // layer at all. "collapsed" governs whether it's showing full content
@@ -360,11 +372,7 @@
     $sticky.dataset.visible = String(shouldShow);
 
     if (shouldShow && !wasVisible) {
-      $sticky.classList.remove('enter-fade', 'enter-slide');
-      if (!prefersReducedMotion && state.entrance !== 'none') {
-        void $sticky.offsetWidth;
-        $sticky.classList.add(state.entrance === 'slide' ? 'enter-slide' : 'enter-fade');
-      }
+      triggerEntrance();
       log('sticky_shown', state.activePreset);
       state.everShown = true;
     }
@@ -1192,6 +1200,11 @@
     syncControlsFromState();
     fullRender();
     evaluateScroll();
+
+    // fullRender/evaluateScroll already trigger the entrance animation if
+    // the component just BECAME visible; this covers the more common case
+    // where it was already visible and the preset simply swapped content.
+    if ($sticky.dataset.visible === 'true') triggerEntrance();
 
     if (preset.after) preset.after();
     if (preset.note) announce(preset.note);
