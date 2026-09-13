@@ -956,11 +956,24 @@
   // measured on the nav element itself. Other compositions (message + CTA +
   // utilities) don't have that internal escape hatch, so a real squeeze
   // shows up as $stickyBar overflowing its own box.
+  // Checks every element that can silently truncate its own content (via
+  // overflow:hidden + ellipsis) rather than visibly breaking the layout —
+  // scrollWidth still reports an element's true, untruncated content width
+  // even while clipped, so comparing it to clientWidth catches "this got
+  // cut off" even when nothing actually overflows its box. Nav additionally
+  // gets its own overflow-x:auto, which absorbs excess pills into internal
+  // scroll instead of truncating — same idea, checked the same way. Without
+  // this broader check, only extreme cases (nav genuinely out of room, the
+  // whole bar overflowing) would ever prompt the floating panel to grow;
+  // everyday cases — a message or CTA a bit longer than usual — would just
+  // quietly ellipsize instead, even with plenty of viewport room to spare.
+  const TRUNCATABLE_SELECTOR = '.primary-nav, .primary-message, .primary-ctas .btn, .cta-textlink, .rotator__msg';
+
   function barIsOverflowing() {
-    const nav = $primary.querySelector('.primary-nav');
-    const navCrowded = nav ? nav.scrollWidth > nav.clientWidth + 1 : false;
+    const anyTruncated = Array.from($stickyBar.querySelectorAll(TRUNCATABLE_SELECTOR))
+      .some((el) => el.scrollWidth > el.clientWidth + 1);
     const barCrowded = $stickyBar.scrollWidth > $stickyBar.clientWidth + 1;
-    return navCrowded || barCrowded;
+    return anyTruncated || barCrowded;
   }
 
   function getDurMedMs() {

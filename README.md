@@ -163,13 +163,23 @@ immediately shrinking anything; switch back to a simple preset and it
 animates back down to compact, since holding onto extra width it no
 longer needs isn't "opportunistic" either.
 
+"Crowded" isn't only the extreme, nav-overflowing case — the panel also
+grows for the much more everyday case of a message or CTA that's simply
+longer than usual and would otherwise quietly ellipsize with room to
+spare. Type a longer line into Presenter Tools → Custom content override
+in Floating presentation and watch the panel grow to show it in full
+rather than truncating it — this is what makes the floating panel's width
+feel like it's actually driven by its content, not just reactive to a
+couple of hard-coded overflow cases.
+
 This is deliberately **not** gated behind the Auto-collapse toggle the way
 nav/utilities collapsing is: expanding the container can't hide or lose
 any content the way collapsing can, so there's no tradeoff to make it
 opt-in — it's just a better default. Collapse is still there as the
 fallback for when even the expanded width isn't enough (a narrow viewport
-genuinely has nowhere further to give), which is why Kitchen Sink at a
-narrow width still ends up demonstrating both mechanics in sequence: it
+genuinely has nowhere further to give, or the content is long enough to
+still need trimming even at the wider cap), which is why Kitchen Sink at
+a narrow width still ends up demonstrating both mechanics in sequence: it
 expands as far as the viewport allows, and only turns to collapsing nav/
 utilities if that still isn't sufficient. The crowding badge names which
 of the two actually resolved it.
