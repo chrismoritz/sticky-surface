@@ -415,6 +415,13 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-elevated);
+  transition: max-width var(--dur-med) var(--ease);
+}
+/* Same opportunistic-expansion deal as floating, scaled down to stay
+   clearly more compact — see the floating rule above for the math proving
+   this can only gain room, never shrink the pill, at any viewport width. */
+.sticky[data-presentation="compact"][data-expanded="true"] .sticky__surface {
+  max-width: min(800px, calc(100vw - 24px));
 }
 .sticky[data-presentation="compact"] .sticky__bar { padding: 9px 10px 9px 18px; gap: 10px; }
 .sticky[data-presentation="compact"] .sticky__primary { font-size: .85rem; }

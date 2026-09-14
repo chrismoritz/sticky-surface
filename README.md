@@ -151,26 +151,32 @@ for the inline chat field, and the panel's Active Layer readout reflects
 it. Pressing Enter in either the sticky bar's field or the window's own
 composer submits, matching how a chat input is expected to behave.
 
-## The floating panel expands before it ever collapses anything
+## Floating and compact both expand before they ever collapse anything
 
-Floating panels default to a compact width, but they aren't locked to it.
-When content is too crowded for the default cap, the panel first tries the
-option that costs nothing — taking more width, if the viewport actually
-has room to give — before any collapse logic even runs. Apply "Kitchen
-Sink (Overload)" in Floating presentation on a wide-enough window and
-watch the panel visibly grow to fit nav + Chat + Search rather than
-immediately shrinking anything; switch back to a simple preset and it
-animates back down to compact, since holding onto extra width it no
-longer needs isn't "opportunistic" either.
+Floating panels and the compact/pill treatment both default to a compact
+width, but neither is locked to it. When content is too crowded for the
+default cap, the panel first tries the option that costs nothing — taking
+more width, if the viewport actually has room to give — before any
+collapse logic even runs. Apply "Kitchen Sink (Overload)" in Floating (or
+Compact) presentation on a wide-enough window and watch the panel visibly
+grow to fit nav + Chat + Search rather than immediately shrinking
+anything; switch back to a simple preset and it animates back down to
+compact, since holding onto extra width it no longer needs isn't
+"opportunistic" either.
 
 "Crowded" isn't only the extreme, nav-overflowing case — the panel also
 grows for the much more everyday case of a message or CTA that's simply
 longer than usual and would otherwise quietly ellipsize with room to
 spare. Type a longer line into Presenter Tools → Custom content override
-in Floating presentation and watch the panel grow to show it in full
-rather than truncating it — this is what makes the floating panel's width
-feel like it's actually driven by its content, not just reactive to a
-couple of hard-coded overflow cases.
+in either presentation and watch the panel grow to show it in full rather
+than truncating it — this is what makes the width feel like it's actually
+driven by its content, not just reactive to a couple of hard-coded
+overflow cases.
+
+Compact keeps its own, smaller ceiling (800px vs. Floating's 920px) so it
+stays visibly more contained even at its widest — the two presentations
+are meant to read differently, not converge into the same shape once
+something makes them grow.
 
 This is deliberately **not** gated behind the Auto-collapse toggle the way
 nav/utilities collapsing is: expanding the container can't hide or lose
@@ -182,7 +188,7 @@ still need trimming even at the wider cap), which is why Kitchen Sink at
 a narrow width still ends up demonstrating both mechanics in sequence: it
 expands as far as the viewport allows, and only turns to collapsing nav/
 utilities if that still isn't sufficient. The crowding badge names which
-of the two actually resolved it.
+of the two actually resolved it, and which presentation did the expanding.
 
 ## Busy / overflow edge cases
 

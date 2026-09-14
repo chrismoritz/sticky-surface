@@ -223,7 +223,7 @@
     autoCollapse: false,
     navCollapsed: false,
     utilitiesCollapsed: false,
-    floatingExpanded: false,
+    panelExpanded: false,
 
     activePreset: 'current-state',
     scrollVisible: false,
@@ -981,17 +981,25 @@
     return parseFloat(raw) || 260;
   }
 
+  // "Floating panel" / "compact pill" for event log and badge text — the
+  // only two presentations opportunistic expansion applies to.
+  function presentationLabel() {
+    return state.presentation === 'compact' ? 'compact pill' : 'floating panel';
+  }
+
   function evaluateCrowding() {
     requestAnimationFrame(() => {
-      // Opportunistic expansion (floating only): let the panel take more
-      // width before ever hiding content. Always on, independent of the
-      // Auto-collapse toggle below — growing the container can't lose
-      // information the way collapsing content can, so there's no tradeoff
-      // to gate behind a demo switch.
-      if (state.presentation === 'floating' && !state.floatingExpanded && barIsOverflowing()) {
-        state.floatingExpanded = true;
+      // Opportunistic expansion (floating and compact only — full-width
+      // already spans the viewport, nothing to expand into): let the panel
+      // take more width before ever hiding content. Always on, independent
+      // of the Auto-collapse toggle below — growing the container can't
+      // lose information the way collapsing content can, so there's no
+      // tradeoff to gate behind a demo switch.
+      const expandable = state.presentation === 'floating' || state.presentation === 'compact';
+      if (expandable && !state.panelExpanded && barIsOverflowing()) {
+        state.panelExpanded = true;
         $sticky.dataset.expanded = 'true';
-        log('sticky_variant_changed', 'floating panel expanded for content');
+        log('sticky_variant_changed', `${presentationLabel()} expanded for content`);
         // The width transition needs to settle before collapse decisions
         // below can trust the layout, so re-run this check once it has.
         setTimeout(evaluateCrowding, getDurMedMs() + 40);
@@ -1024,7 +1032,7 @@
   function updateCrowdingBadge(isOverflowing, collapsedCount) {
     if (!$crowdingBadge) return;
     $crowdingBadge.classList.toggle('is-overflowing', isOverflowing);
-    const expandedNote = state.floatingExpanded ? ' Floating panel expanded to make room.' : '';
+    const expandedNote = state.panelExpanded ? ` ${presentationLabel().replace(/^\w/, (c) => c.toUpperCase())} expanded to make room.` : '';
     if (isOverflowing) {
       $crowdingBadge.textContent = collapsedCount > 0
         ? `Still tight after collapsing ${collapsedCount} item${collapsedCount > 1 ? 's' : ''} — consider trimming utilities.${expandedNote}`
@@ -1032,7 +1040,7 @@
     } else if (collapsedCount > 0) {
       $crowdingBadge.textContent = `Fits — ${collapsedCount} lower-priority item${collapsedCount > 1 ? 's' : ''} collapsed to make room.${expandedNote}`;
     } else {
-      $crowdingBadge.textContent = state.floatingExpanded ? 'Fits — floating panel expanded to make room.' : 'Fits available space.';
+      $crowdingBadge.textContent = state.panelExpanded ? `Fits — ${presentationLabel()} expanded to make room.` : 'Fits available space.';
     }
   }
 
@@ -1633,7 +1641,7 @@
   function fullRender() {
     state.navCollapsed = false;
     state.utilitiesCollapsed = false;
-    state.floatingExpanded = false;
+    state.panelExpanded = false;
     $sticky.dataset.expanded = 'false';
     renderPrimary();
     renderUtilities();
