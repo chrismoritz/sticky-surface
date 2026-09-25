@@ -84,6 +84,7 @@
       label: 'Current State',
       hint: 'Basic footer + separate chat bubble',
       version: 'today',
+      group: 'baseline',
       patch: { legacyMode: true, presentation: 'full-width', chat: 'off', search: 'off', scrollSpy: 'off' },
     },
     {
@@ -91,6 +92,7 @@
       label: 'Tesla-Inspired',
       hint: 'Schedule a Test Drive | Ask a Question',
       version: 'v1',
+      group: 'compositions',
       patch: {
         legacyMode: false, presentation: 'floating', scrollSpy: 'off',
         primaryType: 'message-cta', primary: { message: '', cta: { label: 'Schedule a Test Drive' } },
@@ -102,6 +104,7 @@
       label: 'HVB + Chat',
       hint: 'Search Inventory | Chat',
       version: 'v1',
+      group: 'utilities',
       patch: {
         legacyMode: false, scrollSpy: 'off',
         primaryType: 'message-cta', primary: { message: '', cta: { label: 'Search Inventory', href: '#shopping' } },
@@ -113,6 +116,7 @@
       label: 'Brand Story',
       hint: 'Formula 1 | Explore the Team',
       version: 'v1',
+      group: 'compositions',
       patch: {
         legacyMode: false, scrollSpy: 'off', ctaStyle: 'text-link',
         primaryType: 'message-cta', primary: { message: 'Formula 1', cta: { label: 'Explore the Team' } },
@@ -124,6 +128,7 @@
       label: 'Search Utility',
       hint: 'Search [input field]',
       version: 'v1',
+      group: 'utilities',
       patch: { legacyMode: false, scrollSpy: 'off', primaryType: 'search-inline', chat: 'off', search: 'off' },
     },
     {
@@ -131,6 +136,7 @@
       label: 'Message + CTA',
       hint: 'Discover the latest | Explore',
       version: 'v1',
+      group: 'compositions',
       patch: {
         legacyMode: false, scrollSpy: 'off',
         primaryType: 'message-cta', primary: { message: 'Discover the latest', cta: { label: 'Explore' } },
@@ -142,6 +148,7 @@
       label: 'Section Navigator',
       hint: 'Design | Interior | Technology | Performance',
       version: 'v2',
+      group: 'compositions',
       patch: { legacyMode: false, scrollSpy: 'navigation', chat: 'off', search: 'off' },
     },
     {
@@ -149,6 +156,7 @@
       label: 'Survey Integration',
       hint: 'Help us improve our site | Take Survey | ×',
       version: 'v2',
+      group: 'prompts',
       patch: {
         legacyMode: false, scrollSpy: 'off',
         primaryType: 'message-cta', primary: { message: 'Discover the latest', cta: { label: 'Explore' } },
@@ -161,6 +169,7 @@
       label: 'Quote Prompt (Returning Visitor)',
       hint: 'Welcome back | Get My Quote | ×',
       version: 'v2',
+      group: 'prompts',
       patch: {
         legacyMode: false, scrollSpy: 'off',
         primaryType: 'message-cta', primary: { message: 'Discover the latest', cta: { label: 'Explore' } },
@@ -179,6 +188,7 @@
       label: 'Mobile Compact',
       hint: 'Test Drive | Chat — reduced arrangement',
       version: 'v1',
+      group: 'compositions',
       patch: {
         legacyMode: false, presentation: 'compact', scrollSpy: 'off',
         primaryType: 'message-cta', primary: { message: '', cta: { label: 'Test Drive' } },
@@ -191,6 +201,7 @@
       label: 'Persistent UI Stress Test',
       hint: 'Everything at once — why orchestration matters',
       version: 'v2',
+      group: 'stress',
       patch: {
         legacyMode: false, scrollSpy: 'navigation',
         primaryType: 'message-cta', primary: { message: '', cta: { label: 'Schedule a Test Drive' } },
@@ -206,10 +217,46 @@
       },
     },
     {
+      id: 'chat-search',
+      label: 'Chat + Search',
+      hint: 'Test Drive | Ask a Question | Search — each utility in its own color',
+      version: 'v1',
+      group: 'utilities',
+      patch: {
+        legacyMode: false, presentation: 'floating', scrollSpy: 'off',
+        primaryType: 'message-cta', primary: { message: '', cta: { label: 'Test Drive' } },
+        chat: 'question', search: 'label',
+      },
+      note: 'Focus the chat field or open Search: the whole surface tints to that utility\'s color. Send a question to hand off to the corner chat window; Esc or clicking away closes things.',
+    },
+    {
+      id: 'survey-quote-handoff',
+      label: 'Survey → Quote Handoff',
+      hint: 'Survey arrives, then a returning-visitor Quote takes over',
+      version: 'v2',
+      group: 'prompts',
+      patch: {
+        legacyMode: false, presentation: 'floating', scrollSpy: 'off',
+        primaryType: 'message-cta', primary: { message: 'Discover the latest', cta: { label: 'Explore' } },
+        chat: 'off', search: 'off',
+      },
+      after() {
+        state.hasQualifyingAction = true;
+        state.quoteDismissed = false;
+        state.quoteSubmitted = false;
+        scheduleSurvey();
+        // Staggered so the takeover itself is visible: the Survey settles in
+        // first, then the higher-priority Quote animates over it.
+        scheduleOverlay('quote', promptDelayMs() + HANDOFF_GAP_MS, 'return visit');
+      },
+      note: 'The Survey arrives after the Prompt delay; a few seconds later the returning-visitor Quote takes over (it outranks Survey). Dismiss the Quote and the Survey comes back after a short beat.',
+    },
+    {
       id: 'kitchen-sink',
       label: 'Kitchen Sink (Overload)',
       hint: 'Nav + Chat + Search all at once — the busy edge case',
       version: 'edge-case',
+      group: 'stress',
       patch: {
         legacyMode: false, presentation: 'full-width', scrollSpy: 'navigation',
         chat: 'suggested', search: 'compact',
@@ -217,6 +264,17 @@
       note: 'Everything is asking for room at once. Try "Busy / Overflow Edge Cases" → Auto-collapse to compare raw overflow against priority-ordered collapsing.',
     },
   ];
+
+  const PRESET_GROUPS = [
+    { id: 'baseline', label: 'Baseline' },
+    { id: 'compositions', label: 'Compositions' },
+    { id: 'utilities', label: 'Chat & search', hint: 'Each utility has its own color' },
+    { id: 'prompts', label: 'Intercept prompts', hint: 'Arrive after the Prompt delay' },
+    { id: 'stress', label: 'Orchestration & edge cases' },
+  ];
+
+  // Gap between the Survey and the Quote in the handoff preset.
+  const HANDOFF_GAP_MS = 4000;
 
   /* ------------------------------------------------------------------ *
    * State
@@ -1716,15 +1774,26 @@
 
   function buildPresetButtons() {
     $presetButtons.innerHTML = '';
-    PRESETS.forEach((preset) => {
-      const tag = VERSION_TAGS[preset.version];
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'preset-btn';
-      btn.dataset.preset = preset.id;
-      btn.innerHTML = `<strong>${preset.label}${tag ? ` <span class="tag ${tag.cls}">${tag.label}</span>` : ''}</strong><span>${preset.hint}</span>`;
-      btn.addEventListener('click', () => applyPreset(preset.id));
-      $presetButtons.appendChild(btn);
+    PRESET_GROUPS.forEach((group) => {
+      const members = PRESETS.filter((preset) => preset.group === group.id);
+      if (!members.length) return;
+      const heading = document.createElement('p');
+      heading.className = 'preset-group';
+      heading.innerHTML = group.label + (group.hint ? ` <span>· ${group.hint}</span>` : '');
+      $presetButtons.appendChild(heading);
+      members.forEach((preset) => {
+        const tag = VERSION_TAGS[preset.version];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'preset-btn';
+        btn.dataset.preset = preset.id;
+        btn.innerHTML = `<strong>${preset.label}${tag ? ` <span class="tag ${tag.cls}">${tag.label}</span>` : ''}</strong><span>${preset.hint}</span>`;
+        btn.addEventListener('click', () => {
+          setActiveFlowStep(null); // hand-picked preset: no longer "on" a flow step
+          applyPreset(preset.id);
+        });
+        $presetButtons.appendChild(btn);
+      });
     });
   }
 
@@ -1856,8 +1925,37 @@
     runFlowStep(Number(btn.dataset.flow));
   });
 
+  const FLOW_NOTES = {
+    1: 'The problem: a promo footer and an unrelated chat bubble, each built separately, competing for the same corner.',
+    2: 'One coordinated surface: the test-drive CTA and an inline "Ask a question" field. Send a question to hand off to the corner chat window.',
+    3: 'Same component, new content every time — click through the presets below.',
+    4: 'Same content, different shell — try Full-width / Floating / Compact and the surface finishes.',
+    5: 'Scroll the page: the CTA follows each section and cross-fades as it changes; messages rotate.',
+    6: 'Each utility has its own color. Focus the chat field (blue) or open Search (teal) and the whole surface tints to match. Esc or clicking away closes things.',
+    7: 'Watch the readout at the top count down. The Survey arrives after the Prompt delay, then the returning-visitor Quote animates over it. Dismiss the Quote and the Survey comes back.',
+    8: 'Privacy shows first and wins; the Survey and Quote are scheduled behind it. Accept the notice and the Quote follows after a short beat, then the Survey after that.',
+  };
+  const $flowNote = document.getElementById('flowNote');
+
+  function setActiveFlowStep(step) {
+    document.querySelectorAll('#flowButtons button[data-flow]').forEach((b) => {
+      const on = Number(b.dataset.flow) === step;
+      b.classList.toggle('is-active', on);
+      if (on) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+    });
+    $flowNote.hidden = !step;
+    $flowNote.textContent = step ? FLOW_NOTES[step] : '';
+  }
+
   function runFlowStep(step) {
     log('demo_flow_step', String(step));
+    // Step 5 turns on message rotation; presets deliberately don't reset it
+    // (so it can be tried across presets by hand), but each flow step should
+    // show its own scenario cleanly rather than inherit rotating messages.
+    if (step !== 5 && state.messageMode !== 'static') {
+      state.messageMode = 'static';
+      setRadio('message', 'static');
+    }
     switch (step) {
       case 1:
         applyPreset('current-state');
@@ -1882,6 +1980,8 @@
       case 4:
         setRadio('presentation', 'compact');
         state.presentation = 'compact';
+        renderPrimary();
+        setupRotationTimer();
         applyVisibility();
         openPanelSections([1]); // Presentation
         openPanel();
@@ -1898,11 +1998,23 @@
         openPanel();
         break;
       case 6:
+        applyPreset('chat-search');
+        openPanelSections([0]); // Content Presets — shows the "Chat & search" group
+        openPanel();
+        break;
+      case 7:
+        applyPreset('survey-quote-handoff');
+        openPanelSections([9]); // Orchestration Demos — the Prompt delay control
+        openPanel();
+        break;
+      case 8:
         applyPreset('stress-test');
         openPanelSections([8, 9]); // Busy/Overflow Edge Cases, Orchestration Demos
         openPanel();
         break;
     }
+    // After the step's own work, since applyPreset/openPanel don't touch it.
+    setActiveFlowStep(step);
   }
 
   function openPanelSections(indices) {

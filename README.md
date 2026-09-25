@@ -34,13 +34,16 @@ Everything lives in three files:
 ## Demoing it live
 
 Click **Prototype Controls** (top-left) to open the panel. The **Demo
-Flow** buttons at the top walk through the pitch in order:
+Flow** buttons at the top walk through the pitch in order. Each step shows a
+short "what to watch" caption under the buttons and stays highlighted until
+you pick a preset by hand.
 
 1. **Current State** — today's basic full-width footer + an unrelated
    floating chat bubble. This is the "problem" shot.
 2. **V1 Enhancement** — swaps to the Tesla-inspired floating panel with
    "Schedule a Test Drive" and an inline "Ask a Question" chat field living
-   in one coordinated surface.
+   in one coordinated surface. Send a question to hand off to the corner
+   chat window.
 3. **Flexibility** — jump into the preset list and click through Search
    Inventory, Brand Story (F1), and the various Chat/Search entry points.
    Same component, new content every time.
@@ -48,14 +51,28 @@ Flow** buttons at the top walk through the pitch in order:
    surface finishes (opaque, translucent/blur, bordered) to show the same
    component adapting its shell.
 5. **The Future (V2)** — turns on message rotation and contextual Scroll
-   Spy, so the CTA changes as the visitor scrolls through Design, Interior,
-   Technology, Performance.
-6. **Orchestration** — shows the privacy notice immediately and schedules
-   a Survey and a Quote prompt behind it. The panel counts down to their
-   arrival; when they land, privacy still wins and they wait
-   ("…_triggered — waiting"). Accept the notice and the Quote follows it
-   after a short beat; dismiss the Quote and the Survey follows that.
-   Nothing overlaps, and nothing cuts in abruptly.
+   Spy, so the CTA changes (and cross-fades) as the visitor scrolls through
+   Design, Interior, Technology, Performance.
+6. **Chat & Search** — the Chat + Search preset: both utilities side by
+   side, each in its own color. Focus the chat field or open Search and the
+   whole surface tints to match; Esc or clicking away closes things.
+7. **Intercept Prompts** — the Survey → Quote Handoff preset. The readout
+   counts down; the Survey arrives after the Prompt delay, then the
+   returning-visitor Quote animates over it. Dismiss the Quote and the
+   Survey comes back after a short beat.
+8. **Orchestration** — shows the privacy notice immediately and schedules
+   a Survey and a Quote prompt behind it. When they land, privacy still wins
+   and they wait ("…_triggered — waiting"). Accept the notice and the Quote
+   follows after a short beat; dismiss the Quote and the Survey follows
+   that. Nothing overlaps, and nothing cuts in abruptly.
+
+Each step starts from a clean slate — the rotating messages step 5 turns
+on don't carry into the later steps.
+
+**Content Presets** are grouped by what they demonstrate — *Baseline*,
+*Compositions*, *Chat & search* (the color-coded utilities), *Intercept
+prompts* (which arrive after the Prompt delay), and *Orchestration & edge
+cases* — so the scenario you're after is easy to find.
 
 The **Event Log** at the bottom of the panel is a live feed of everything
 the component would emit for analytics in a real build.

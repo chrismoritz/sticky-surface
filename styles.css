@@ -846,6 +846,11 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .panel__row input[type="radio"], .panel__row input[type="checkbox"] { accent-color: #5eff9a; }
 
 .panel__grid { display: flex; flex-direction: column; gap: 6px; }
+.preset-group {
+  margin: 10px 0 0; font-size: .66rem; text-transform: uppercase; letter-spacing: .08em; color: #c9ccd6;
+}
+.preset-group:first-child { margin-top: 0; }
+.preset-group span { text-transform: none; letter-spacing: 0; color: #6f717b; }
 .preset-btn {
   text-align: left; background: #1a1b20; border: 1px solid #2c2d34; color: #e7e7ea;
   border-radius: var(--radius-sm); padding: 10px 12px; font: inherit; font-size: .78rem;
@@ -896,6 +901,14 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   border-radius: var(--radius-sm); padding: 9px 12px; font: inherit; font-size: .78rem; cursor: pointer;
 }
 .panel__flow button:hover { border-color: #46474f; }
+.panel__flow button.is-active { border-color: #5eff9a; background: #17211c; }
+/* "What to watch" caption for the current Demo Flow step. */
+.panel__flow-note {
+  margin: 10px 0 0; padding: 9px 11px; border-radius: var(--radius-sm);
+  background: #17211c; border: 1px solid #24402f; color: #cfe9d9;
+  font-size: .74rem; line-height: 1.5;
+}
+.panel__flow-note[hidden] { display: none; }
 
 .event-log {
   list-style: none; margin: 10px 0 0; padding: 0;
