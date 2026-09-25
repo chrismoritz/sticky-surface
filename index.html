@@ -384,6 +384,15 @@
     <details class="panel__section">
       <summary>Orchestration Demos <span class="tag tag--v2">V2</span></summary>
       <p class="panel__hint">Trigger these to see the priority model in action: required UI &gt; active interaction &gt; requested utility &gt; primary content &gt; contextual content &gt; quote prompt &gt; survey.</p>
+      <label class="panel__field">Prompt delay
+        <select id="promptDelaySelect">
+          <option value="immediate">Immediate</option>
+          <option value="short">1.5 seconds</option>
+          <option value="standard" selected>3 seconds</option>
+          <option value="long">6 seconds</option>
+        </select>
+      </label>
+      <p class="panel__hint">Survey and quote prompts arrive after this delay, like a real intercept would. A prompt that was held back (privacy notice, chat in use) follows its blocker after a short beat.</p>
       <div class="panel__row">
         <button class="btn btn--panel" id="triggerPrivacy" type="button">Show Privacy Notice</button>
         <button class="btn btn--panel" id="triggerSurvey" type="button">Trigger Survey</button>

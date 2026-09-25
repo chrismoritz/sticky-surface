@@ -33,7 +33,7 @@ Everything lives in three files:
 
 ## Demoing it live
 
-Click **Prototype Controls** (top-right) to open the panel. The **Demo
+Click **Prototype Controls** (top-left) to open the panel. The **Demo
 Flow** buttons at the top walk through the pitch in order:
 
 1. **Current State** — today's basic full-width footer + an unrelated
@@ -50,9 +50,12 @@ Flow** buttons at the top walk through the pitch in order:
 5. **The Future (V2)** — turns on message rotation and contextual Scroll
    Spy, so the CTA changes as the visitor scrolls through Design, Interior,
    Technology, Performance.
-6. **Orchestration** — fires Privacy, Survey, and a busy composition at
-   once. Watch the event log: privacy wins, the survey visibly waits for it
-   ("survey_triggered — waiting"), and nothing overlaps.
+6. **Orchestration** — shows the privacy notice immediately and schedules
+   a Survey and a Quote prompt behind it. The panel counts down to their
+   arrival; when they land, privacy still wins and they wait
+   ("…_triggered — waiting"). Accept the notice and the Quote follows it
+   after a short beat; dismiss the Quote and the Survey follows that.
+   Nothing overlaps, and nothing cuts in abruptly.
 
 The **Event Log** at the bottom of the panel is a live feed of everything
 the component would emit for analytics in a real build.
@@ -293,6 +296,42 @@ Both layers now share one snapshot-and-restore mechanism
 (`captureCompositionIfNeeded` / `restoreCompositionIfIdle`) rather than each
 keeping its own copy of "what was there before," so whichever one releases
 last is the one that puts the original content back.
+
+## Sequencing: prompts arrive after a delay, takeovers animate
+
+Real intercepts don't appear the instant a page loads, so Survey and Quote
+are now *scheduled* rather than shown on the spot. **Orchestration Demos →
+Prompt delay** sets how long they wait (Immediate / 1.5s / 3s / 6s,
+default 3s), and the panel's Active layer readout counts down ("Next:
+Survey arriving in 2.0s"). That applies everywhere a prompt is triggered:
+the Trigger Survey / Simulate Return Visit buttons, the Survey Integration,
+Quote Prompt, and Stress Test presets, and a real tab return. A prompt that
+was held back by the privacy notice or an active chat/search follows its
+blocker after a short (~0.9s) beat instead of arriving in the same instant,
+so "notice accepted" and "here's the prompt" read as two moments.
+
+When one state takes over the primary zone — a prompt arriving, a Quote
+preempting a Survey, a prompt being dismissed, or a contextual CTA changing
+as you scroll — the transition is sequenced instead of cut:
+
+1. The surface's tint starts cross-fading to the new state's color.
+2. The outgoing content fades and sinks slightly (`--dur-fast`).
+3. The new content renders and rises into place (`--dur-med`), and the
+   surface animates between its old and new size (a FLIP of width and
+   height) rather than snapping — noticeable in Floating and Compact, where
+   a prompt is usually wider than what it replaces.
+4. A newly arrived prompt pings its colored dot once.
+
+All of it follows the **Animation timing** control. Section navigation
+deliberately doesn't cross-fade on scroll (it only moves its highlight),
+and reduced-motion users get instant swaps with no movement.
+
+Two details worth knowing: state changes immediately and only the render
+waits, so changes that land mid-transition coalesce into a single render of
+the latest state — in the Stress Test, a Survey that's preempted by the
+Quote in the same moment never flashes on screen. And switching presets
+cancels anything still on its way, so a prompt scheduled for one scene
+never lands in the next.
 
 ## Quality-of-life pass
 

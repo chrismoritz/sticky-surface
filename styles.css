@@ -270,6 +270,10 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .sticky__surface {
   pointer-events: auto;
   width: 100%;
+  /* One declaration for both, so presentation rules don't overwrite either:
+     tints cross-fade when one state takes over another, and floating/compact
+     widths animate when they opportunistically expand. */
+  transition: background-color var(--dur-med) var(--ease), max-width var(--dur-med) var(--ease);
   background: var(--paper);
   color: var(--ink);
   border-top: 1px solid var(--line);
@@ -303,6 +307,24 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   flex: 0 1 auto; min-width: 0;
 }
 .sticky__primary.is-fluid { flex: 1 1 auto; }
+
+/* Takeover sequencing (see swapPrimary() in script.js): outgoing content
+   fades and sinks, incoming content rises into place. */
+.sticky__primary { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.sticky__primary.is-swapping-out { opacity: 0; transform: translateY(6px); }
+.sticky__primary.is-swapping-in { animation: primarySwapIn var(--dur-med) var(--ease) both; }
+@keyframes primarySwapIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* A prompt that just arrived pings its colored dot once — enough to draw
+   the eye to "something new is here" without a louder banner treatment. */
+.sticky__primary.is-swapping-in .primary-prompt p::before { animation: dotPing 900ms var(--ease) var(--dur-fast) 1; }
+@keyframes dotPing {
+  from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--dot) 60%, transparent); }
+  to { box-shadow: 0 0 0 9px color-mix(in srgb, var(--dot) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sticky__primary { transition: none; }
+  .sticky__primary.is-swapping-in, .sticky__primary.is-swapping-in .primary-prompt p::before { animation: none; }
+}
 /* flex-shrink (not 0) so utilities share a real space deficit with primary
    instead of forcing primary to absorb the entire squeeze alone — without
    this, primary could get crushed to near-zero while utilities stayed at
@@ -425,7 +447,6 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-elevated);
-  transition: max-width var(--dur-med) var(--ease);
 }
 /* Opportunistic expansion: when content is too crowded for the default
    cap, script.js flips this on. min(920px, 100vw-24px) is mathematically
@@ -449,7 +470,6 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-elevated);
-  transition: max-width var(--dur-med) var(--ease);
 }
 /* Same opportunistic-expansion deal as floating, scaled down to stay
    clearly more compact — see the floating rule above for the math proving
@@ -551,10 +571,10 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   content: ''; display: inline-block; vertical-align: middle;
   width: 8px; height: 8px; border-radius: 50%; margin-right: 9px;
 }
-.primary-prompt--survey p::before { background: var(--survey); }
+.primary-prompt--survey p::before { --dot: var(--survey); background: var(--dot); }
 .primary-prompt--survey .btn--primary { background: var(--survey); }
 .primary-prompt--survey .btn--primary:hover { background: #532f80; }
-.primary-prompt--quote p::before { background: var(--quote); }
+.primary-prompt--quote p::before { --dot: var(--quote); background: var(--dot); }
 .primary-prompt--quote .btn--primary { background: var(--quote); }
 .primary-prompt--quote .btn--primary:hover { background: #185f3d; }
 
@@ -856,6 +876,8 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   font-size: .72rem; color: #8e8f97;
 }
 .active-layer strong { color: #5eff9a; font-weight: 600; }
+.active-layer__next { display: block; margin-top: 3px; color: #c9ccd6; }
+.active-layer__next::before { content: 'Next: '; color: #8e8f97; }
 .active-layer[data-kind="chat"] strong { color: #7c93ff; }
 .active-layer[data-kind="search"] strong { color: #3fd4cb; }
 .active-layer[data-kind="survey"] strong { color: #c69bf0; }

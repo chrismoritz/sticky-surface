@@ -154,7 +154,7 @@
         primaryType: 'message-cta', primary: { message: 'Discover the latest', cta: { label: 'Explore' } },
         chat: 'off', search: 'off',
       },
-      after() { triggerSurvey(); },
+      after() { scheduleSurvey(); },
     },
     {
       id: 'quote-prompt',
@@ -170,7 +170,7 @@
         state.hasQualifyingAction = true;
         state.quoteDismissed = false;
         state.quoteSubmitted = false;
-        triggerQuote();
+        scheduleQuote();
       },
       note: 'Simulates a visitor who clicked a CTA on an earlier visit and has just returned to the tab.',
     },
@@ -201,8 +201,8 @@
         state.quoteDismissed = false;
         state.quoteSubmitted = false;
         triggerPrivacy();
-        triggerSurvey();
-        triggerQuote();
+        scheduleSurvey();
+        scheduleQuote();
       },
     },
     {
@@ -270,6 +270,7 @@
     pendingQuote: false,
     quoteDismissed: false,
     quoteSubmitted: false,
+    promptDelay: 'standard', // how long Survey/Quote wait before arriving
 
     rotationPaused: false,
   };
@@ -399,7 +400,10 @@
     else delete $sticky.dataset.kind;
 
     if (!$activeLayerReadout) return;
-    $activeLayerReadout.innerHTML = `Active layer: <strong>${computeActiveLayerLabel()}</strong>`;
+    const arriving = Object.entries(scheduled).map(([k, v]) =>
+      `${k === 'quote' ? 'Quote prompt' : 'Survey'} arriving in ${Math.max(0, (v.dueAt - performance.now()) / 1000).toFixed(1)}s`);
+    $activeLayerReadout.innerHTML = `Active layer: <strong>${computeActiveLayerLabel()}</strong>`
+      + arriving.map((t) => `<span class="active-layer__next">${t}</span>`).join('');
     if (kind) $activeLayerReadout.dataset.kind = kind;
     else delete $activeLayerReadout.dataset.kind;
   }
@@ -879,6 +883,10 @@
       .observe($sticky.querySelector('.sticky__surface'));
   }
   window.addEventListener('resize', () => { if (state.chatWindowOpen) positionChatWindow(); });
+  // The sticky glides up/down when the privacy notice comes and goes; re-measure once it lands.
+  $sticky.addEventListener('transitionend', (e) => {
+    if (e.target === $sticky && e.propertyName === 'bottom' && state.chatWindowOpen) positionChatWindow();
+  });
 
   function openChatWindow(initialMessage) {
     if (!state.chatWindowOpen) {
@@ -1177,6 +1185,11 @@
     return anyTruncated || barCrowded;
   }
 
+  function getDurFastMs() {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--dur-fast');
+    return parseFloat(raw) || 160;
+  }
+
   function getDurMedMs() {
     const raw = getComputedStyle(document.documentElement).getPropertyValue('--dur-med');
     return parseFloat(raw) || 260;
@@ -1303,6 +1316,127 @@
     }
   }
 
+  /* ------------------------------------------------------------------ *
+   * Sequencing — Survey/Quote arrive after a delay, and any takeover of
+   * the primary zone animates instead of cutting.
+   * ------------------------------------------------------------------ */
+
+  const PROMPT_DELAYS = { immediate: 0, short: 1500, standard: 3000, long: 6000 };
+  const RELEASE_BEAT_MS = 900;
+  const scheduled = {}; // 'survey' | 'quote' -> { timer, dueAt }
+  let countdownTimer = null;
+
+  function promptDelayMs() {
+    return PROMPT_DELAYS[state.promptDelay] ?? PROMPT_DELAYS.standard;
+  }
+
+  function scheduleOverlay(kind, ms, reason) {
+    if (scheduled[kind]) return;
+    const fire = kind === 'quote' ? triggerQuote : triggerSurvey;
+    if (!ms) { fire(); return; }
+    scheduled[kind] = {
+      dueAt: performance.now() + ms,
+      timer: setTimeout(() => { delete scheduled[kind]; fire(); }, ms),
+    };
+    log(`${kind}_scheduled`, `${reason || 'arriving'} in ${(ms / 1000).toFixed(1)}s`);
+    // Keeps the panel's countdown ticking while anything is on its way.
+    if (!countdownTimer) {
+      countdownTimer = setInterval(() => {
+        renderActiveLayer();
+        if (!Object.keys(scheduled).length) { clearInterval(countdownTimer); countdownTimer = null; }
+      }, 200);
+    }
+  }
+
+  function scheduleSurvey() {
+    if (state.surveyActive) return;
+    scheduleOverlay('survey', promptDelayMs());
+  }
+
+  function scheduleQuote() {
+    if (state.quoteActive || state.quoteDismissed || state.quoteSubmitted) return;
+    scheduleOverlay('quote', promptDelayMs());
+  }
+
+  function cancelScheduledOverlays() {
+    Object.keys(scheduled).forEach((kind) => { clearTimeout(scheduled[kind].timer); delete scheduled[kind]; });
+  }
+
+  // Animated takeover: the old primary content fades/sinks out, the render
+  // happens, the new content rises in, and the surface animates between its
+  // old and new size (FLIP) instead of snapping. State is always mutated
+  // synchronously by the caller; only the DOM render is deferred — so calls
+  // arriving mid-transition coalesce into one render of the latest state
+  // (a Survey that's immediately preempted by a Quote never flashes on).
+  let swapTimer = null;
+  let swapNeedsFull = false;
+  let swapCleanupTimer = null;
+  const $surface = $sticky.querySelector('.sticky__surface');
+
+  function swapPrimary(full) {
+    swapNeedsFull = swapNeedsFull || full;
+    if (prefersReducedMotion || $sticky.dataset.visible !== 'true') { finishSwap(); return; }
+    if (swapTimer) return;
+    clearTimeout(swapCleanupTimer);
+    $primary.classList.remove('is-swapping-in');
+    $primary.classList.add('is-swapping-out');
+    swapTimer = setTimeout(finishSwap, getDurFastMs());
+  }
+
+  function finishSwap() {
+    clearTimeout(swapTimer);
+    swapTimer = null;
+    const full = swapNeedsFull;
+    swapNeedsFull = false;
+
+    const wasVisible = $sticky.dataset.visible === 'true';
+    const wasMinimized = $sticky.dataset.minimized;
+    const first = $surface.getBoundingClientRect();
+
+    // Suppress the max-width transition while settling the new size (the
+    // FLIP below animates it instead), but keep the background cross-fade.
+    $surface.style.transitionProperty = 'background-color';
+    if (full) fullRender(); else renderPrimary();
+    settleExpansionNow();
+    const last = $surface.getBoundingClientRect();
+    $surface.style.transitionProperty = '';
+
+    $primary.classList.remove('is-swapping-out');
+    if (!prefersReducedMotion && wasVisible) {
+      void $primary.offsetWidth;
+      $primary.classList.add('is-swapping-in');
+      swapCleanupTimer = setTimeout(() => $primary.classList.remove('is-swapping-in'), 1000);
+      const sizeChanged = Math.abs(first.width - last.width) > 1 || Math.abs(first.height - last.height) > 1;
+      // Skip when minimize/restore is changing at the same time — that
+      // sequence already animates the surface's height on its own.
+      if (first.width && sizeChanged && wasMinimized === $sticky.dataset.minimized) {
+        $surface.animate(
+          [{ width: `${first.width}px`, height: `${first.height}px` }, { width: `${last.width}px`, height: `${last.height}px` }],
+          { duration: getDurMedMs(), easing: 'cubic-bezier(.2,.7,.2,1)' },
+        );
+      }
+    }
+    if (!full) evaluateCrowding();
+  }
+
+  function cancelSwap() {
+    clearTimeout(swapTimer);
+    clearTimeout(swapCleanupTimer);
+    swapTimer = null;
+    swapNeedsFull = false;
+    $primary.classList.remove('is-swapping-out', 'is-swapping-in');
+  }
+
+  // Same decision as evaluateCrowding()'s expansion branch, made
+  // synchronously so the FLIP can target the surface's final width.
+  function settleExpansionNow() {
+    const expandable = state.presentation === 'floating' || state.presentation === 'compact';
+    if (!expandable || state.panelExpanded || $sticky.dataset.visible !== 'true' || !barIsOverflowing()) return;
+    state.panelExpanded = true;
+    $sticky.dataset.expanded = 'true';
+    log('sticky_variant_changed', `${presentationLabel()} expanded for content`);
+  }
+
   function triggerSurvey() {
     if (state.privacyActive) {
       state.pendingSurvey = true;
@@ -1327,14 +1461,14 @@
     state.minimized = false;
     state.scrollVisible = true;
     log('survey_triggered', 'shown in persistent layer');
-    fullRender();
+    swapPrimary(true);
   }
 
   function dismissSurvey() {
     state.surveyActive = false;
     restoreCompositionIfIdle();
     log('survey_dismissed');
-    fullRender();
+    swapPrimary(true);
     maybeReleasePendingOverlays();
   }
 
@@ -1368,7 +1502,7 @@
     state.scrollVisible = true;
     closeFlyout();
     log('quote_triggered', 'shown in persistent layer — returning visitor');
-    fullRender();
+    swapPrimary(true);
   }
 
   function dismissQuote() {
@@ -1377,7 +1511,7 @@
     closeFlyout();
     restoreCompositionIfIdle();
     log('quote_dismissed');
-    fullRender();
+    swapPrimary(true);
     maybeReleasePendingOverlays();
   }
 
@@ -1393,7 +1527,7 @@
       state.quoteActive = false;
       closeFlyout();
       restoreCompositionIfIdle();
-      fullRender();
+      swapPrimary(true);
       renderActiveLayer();
       maybeReleasePendingOverlays();
     }, 1400);
@@ -1402,19 +1536,23 @@
   // Returning to the tab after a qualifying action is what a real site
   // would use to decide "this visitor is worth a quote prompt."
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && state.hasQualifyingAction) triggerQuote();
+    if (!document.hidden && state.hasQualifyingAction) scheduleQuote();
   });
 
+  // A held-back prompt comes in after a short beat once its blocker clears,
+  // rather than in the same instant — so "privacy accepted" / "chat closed"
+  // and "here's the prompt" read as two moments, not one jump.
   function maybeReleasePendingOverlays() {
     if (state.privacyActive || state.activeInteraction || state.chatWindowOpen) return;
+    const beat = promptDelayMs() ? RELEASE_BEAT_MS : 0;
     if (state.pendingQuote) {
       state.pendingQuote = false;
-      triggerQuote();
+      scheduleOverlay('quote', beat, 'released');
       return;
     }
     if (state.pendingSurvey) {
       state.pendingSurvey = false;
-      triggerSurvey();
+      scheduleOverlay('survey', beat, 'released');
     }
   }
 
@@ -1440,12 +1578,16 @@
   $privacyDecline.addEventListener('click', () => resolvePrivacy('declined'));
 
   document.getElementById('triggerPrivacy').addEventListener('click', triggerPrivacy);
-  document.getElementById('triggerSurvey').addEventListener('click', triggerSurvey);
+  document.getElementById('triggerSurvey').addEventListener('click', scheduleSurvey);
   document.getElementById('triggerQuote').addEventListener('click', () => {
     state.hasQualifyingAction = true;
     state.quoteDismissed = false;
     state.quoteSubmitted = false;
-    triggerQuote();
+    scheduleQuote();
+  });
+  document.getElementById('promptDelaySelect').addEventListener('change', (e) => {
+    state.promptDelay = e.target.value;
+    log('prompt_delay_changed', e.target.selectedOptions[0].textContent);
   });
   document.getElementById('triggerStress').addEventListener('click', () => applyPreset('stress-test'));
 
@@ -1504,8 +1646,12 @@
     if (current !== state.activeSection) {
       state.activeSection = current;
       log('section_changed', sectionLabel(current));
-      if (!state.activeInteraction && state.scrollSpy !== 'off' && !state.surveyActive) {
-        renderPrimary();
+      if (!state.activeInteraction && state.scrollSpy !== 'off' && !state.surveyActive && !state.quoteActive) {
+        // Section nav just moves its highlight — fading the whole nav on every
+        // section change would be noise. Label changes (contextual CTA,
+        // "Viewing: …") are a real content swap, so those cross-fade.
+        if (state.scrollSpy === 'navigation') renderPrimary();
+        else swapPrimary(false);
       }
     }
 
@@ -1522,6 +1668,11 @@
   function applyPreset(id) {
     const preset = PRESETS.find((p) => p.id === id);
     if (!preset) return;
+
+    // A preset is a fresh scene: nothing from the previous one should arrive
+    // or finish animating on top of it.
+    cancelScheduledOverlays();
+    cancelSwap();
 
     Object.assign(state, {
       legacyMode: false,
@@ -1779,6 +1930,7 @@
     setRadio('scrollspy', state.scrollSpy);
     setRadio('animspeed', state.animSpeed);
     setSelect('visibilitySelect', state.visibility);
+    setSelect('promptDelaySelect', state.promptDelay);
     applyAnimSpeed(state.animSpeed);
     markActivePresetButton();
     applyControlsVisibility();
@@ -1837,7 +1989,7 @@
   const PARAM_FIELD_MAP = {
     pr: 'presentation', sf: 'surface', cs: 'ctaStyle', vis: 'visibility',
     ent: 'entrance', an: 'animSpeed', dm: 'dismissMode', mm: 'messageMode',
-    ch: 'chat', se: 'search', dv: 'device', ss: 'scrollSpy',
+    ch: 'chat', se: 'search', dv: 'device', ss: 'scrollSpy', pd: 'promptDelay',
   };
 
   function currentStateParams() {
@@ -1851,6 +2003,8 @@
   function applyParamsToState(params) {
     const presetId = params.get('p');
     if (!PRESETS.some((preset) => preset.id === presetId)) return false;
+    // Before applyPreset, so a preset that schedules a prompt uses the shared delay.
+    if (params.has('pd')) state.promptDelay = params.get('pd');
     applyPreset(presetId);
     Object.entries(PARAM_FIELD_MAP).forEach(([key, field]) => { if (params.has(key)) state[field] = params.get(key); });
     if (params.has('srt')) state.sectionReachTarget = params.get('srt');
