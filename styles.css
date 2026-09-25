@@ -500,9 +500,12 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .primary-search-inline { display: flex; align-items: center; justify-content: safe center; gap: 10px; flex: 1 1 auto; }
 .primary-search-inline .search-field { flex: 1 1 auto; max-width: 460px; }
 
-/* Survey composition */
-.primary-survey { display: flex; align-items: center; gap: 14px; }
-.primary-survey p { margin: 0; font-size: .92rem; }
+/* Survey / Quote composition — both take over the primary zone the same way */
+.primary-prompt { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.primary-prompt p {
+  margin: 0; font-size: .92rem; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* -------- Icon buttons (minimize/dismiss/utility icons) -------- */
 .sticky__icon-btn {
@@ -596,8 +599,22 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .flyout-results button:hover { background: var(--mist); }
 .flyout-empty { color: var(--grey-500); font-size: .85rem; padding: 6px 8px; }
 
-/* -------- Survey layer (reuses sticky) -------- */
-.sticky[data-survey="true"] .sticky__surface { background: var(--mist); }
+/* Quote lead-gen mini form (inside the flyout, like chat prompts / search results) */
+.quote-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; }
+.quote-form__field {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: .78rem; color: var(--grey-500);
+  flex: 1 1 140px; min-width: 120px;
+}
+.quote-form__field input {
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  padding: 8px 10px; font: inherit; font-size: .88rem; color: var(--ink); background: #fff;
+}
+.quote-form button[type="submit"] { flex: 0 0 auto; }
+
+/* -------- Survey / Quote layer (reuses sticky) -------- */
+.sticky[data-survey="true"] .sticky__surface,
+.sticky[data-quote="true"] .sticky__surface { background: var(--mist); }
 
 /* ==========================================================================
    Responsive composition for the sticky bar

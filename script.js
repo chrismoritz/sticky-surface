@@ -157,6 +157,24 @@
       after() { triggerSurvey(); },
     },
     {
+      id: 'quote-prompt',
+      label: 'Quote Prompt (Returning Visitor)',
+      hint: 'Welcome back | Get My Quote | ×',
+      version: 'v2',
+      patch: {
+        legacyMode: false, scrollSpy: 'off',
+        primaryType: 'message-cta', primary: { message: 'Discover the latest', cta: { label: 'Explore' } },
+        chat: 'off', search: 'off',
+      },
+      after() {
+        state.hasQualifyingAction = true;
+        state.quoteDismissed = false;
+        state.quoteSubmitted = false;
+        triggerQuote();
+      },
+      note: 'Simulates a visitor who clicked a CTA on an earlier visit and has just returned to the tab.',
+    },
+    {
       id: 'mobile-compact',
       label: 'Mobile Compact',
       hint: 'Test Drive | Chat — reduced arrangement',
@@ -179,8 +197,12 @@
         chat: 'question', search: 'icon',
       },
       after() {
+        state.hasQualifyingAction = true;
+        state.quoteDismissed = false;
+        state.quoteSubmitted = false;
         triggerPrivacy();
         triggerSurvey();
+        triggerQuote();
       },
     },
     {
@@ -243,6 +265,12 @@
     pendingSurvey: false,
     priorComposition: null,
 
+    hasQualifyingAction: false,
+    quoteActive: false,
+    pendingQuote: false,
+    quoteDismissed: false,
+    quoteSubmitted: false,
+
     rotationPaused: false,
   };
 
@@ -296,7 +324,18 @@
    * Event log
    * ------------------------------------------------------------------ */
 
+  // A "qualifying action" is the kind of intent signal that would make a
+  // real site follow up with a quote prompt on return visit: engaging a
+  // CTA, opening chat or search, or reaching the Shopping section.
+  function markQualifyingAction(type, detail) {
+    if (state.hasQualifyingAction) return;
+    const qualifies = type === 'cta_clicked' || type === 'chat_opened' || type === 'search_opened'
+      || (type === 'section_changed' && detail === 'Shopping');
+    if (qualifies) state.hasQualifyingAction = true;
+  }
+
   function log(type, detail) {
+    markQualifyingAction(type, detail);
     const li = document.createElement('li');
     const time = document.createElement('time');
     time.textContent = new Date().toLocaleTimeString([], { hour12: false });
@@ -322,11 +361,14 @@
     if (state.activeInteraction === 'chat' || state.chatWindowOpen) return 'Active interaction — Chat';
     if (state.activeInteraction === 'search') return 'Active interaction — Search';
     if (state.flyout === 'chat') return 'Requested utility — Chat prompts open';
+    if (state.flyout === 'quote') return 'Requested utility — Quote form open';
     if (state.flyout === 'search' || state.flyout === 'nav-overflow') return 'Requested utility — open';
+    if (state.quoteActive) return 'Lead capture — Request a Quote';
     if (state.surveyActive) return 'Survey / optional engagement';
     if (state.scrollSpy === 'contextual') return `Contextual content — ${sectionLabel(state.activeSection)}`;
     if (state.scrollSpy === 'navigation') return 'Contextual content — section navigation';
     if (state.scrollSpy === 'orientation') return 'Contextual content — orientation';
+    if (state.pendingQuote) return 'Primary content (quote prompt waiting)';
     if (state.pendingSurvey) return 'Primary content (survey waiting)';
     return 'Primary persistent content';
   }
@@ -382,6 +424,7 @@
     $sticky.dataset.presentation = state.presentation;
     $sticky.dataset.surface = state.surface;
     $sticky.dataset.survey = String(state.surveyActive);
+    $sticky.dataset.quote = String(state.quoteActive);
 
     $legacyFooter.hidden = !state.legacyMode;
     $legacyChatFab.hidden = !state.legacyMode;
@@ -413,8 +456,9 @@
 
   function renderPrimary() {
     $primary.innerHTML = '';
-    $primary.classList.toggle('is-fluid', !state.surveyActive && state.scrollSpy === 'off' && state.primaryType === 'search-inline');
+    $primary.classList.toggle('is-fluid', !state.surveyActive && !state.quoteActive && state.scrollSpy === 'off' && state.primaryType === 'search-inline');
 
+    if (state.quoteActive) return renderQuotePrimary();
     if (state.surveyActive) return renderSurveyPrimary();
     if (state.scrollSpy === 'navigation') return renderNavPrimary();
     if (state.scrollSpy === 'orientation') return renderOrientationPrimary();
@@ -424,7 +468,7 @@
 
   function renderSurveyPrimary() {
     const wrap = document.createElement('div');
-    wrap.className = 'primary-survey';
+    wrap.className = 'primary-prompt';
 
     const p = document.createElement('p');
     p.textContent = 'Help us improve our site';
@@ -446,6 +490,35 @@
     close.setAttribute('aria-label', 'Dismiss survey');
     close.innerHTML = '&times;';
     close.addEventListener('click', () => dismissSurvey());
+    wrap.appendChild(close);
+
+    $primary.appendChild(wrap);
+  }
+
+  function renderQuotePrimary() {
+    const wrap = document.createElement('div');
+    wrap.className = 'primary-prompt';
+
+    const p = document.createElement('p');
+    p.textContent = 'Welcome back. Ready for pricing on the Aurelia GT?';
+    wrap.appendChild(p);
+
+    const getQuote = document.createElement('button');
+    getQuote.type = 'button';
+    getQuote.className = 'btn btn--primary btn--small';
+    getQuote.textContent = 'Get My Quote';
+    getQuote.addEventListener('click', () => {
+      log('cta_clicked', 'get_my_quote');
+      openFlyout('quote');
+    });
+    wrap.appendChild(getQuote);
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'sticky__icon-btn';
+    close.setAttribute('aria-label', 'Dismiss quote prompt');
+    close.innerHTML = '&times;';
+    close.addEventListener('click', () => dismissQuote());
     wrap.appendChild(close);
 
     $primary.appendChild(wrap);
@@ -713,7 +786,7 @@
     });
     input.addEventListener('blur', () => {
       state.activeInteraction = null;
-      maybeReleasePendingSurvey();
+      maybeReleasePendingOverlays();
     });
     field.appendChild(input);
 
@@ -778,7 +851,7 @@
     state.chatWindowOpen = false;
     $chatWindow.hidden = true;
     log('chat_closed', 'corner window');
-    maybeReleasePendingSurvey();
+    maybeReleasePendingOverlays();
   }
 
   function pushChatWindowMessage(from, text) {
@@ -877,7 +950,7 @@
     input.addEventListener('input', () => renderSearchResults(input.value));
     input.addEventListener('blur', () => {
       state.activeInteraction = null;
-      maybeReleasePendingSurvey();
+      maybeReleasePendingOverlays();
     });
     field.appendChild(input);
     if (autofocus) requestAnimationFrame(() => input.focus());
@@ -934,7 +1007,61 @@
       $flyout.appendChild(chips);
     } else if (kind === 'search') {
       renderSearchResults('');
+    } else if (kind === 'quote') {
+      renderQuoteForm();
     }
+  }
+
+  function renderQuoteForm() {
+    $flyout.innerHTML = '';
+
+    if (state.quoteSubmitted) {
+      const title = document.createElement('p');
+      title.className = 'flyout-title';
+      title.textContent = 'Request received';
+      $flyout.appendChild(title);
+      const msg = document.createElement('p');
+      msg.className = 'flyout-empty';
+      msg.textContent = 'Thanks — a product specialist will follow up shortly.';
+      $flyout.appendChild(msg);
+      return;
+    }
+
+    const title = document.createElement('p');
+    title.className = 'flyout-title';
+    title.textContent = 'Request a Quote';
+    $flyout.appendChild(title);
+
+    const form = document.createElement('form');
+    form.className = 'quote-form';
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      submitQuote();
+    });
+
+    [
+      { id: 'quoteName', label: 'Name', type: 'text' },
+      { id: 'quoteEmail', label: 'Email', type: 'email' },
+      { id: 'quoteZip', label: 'ZIP code', type: 'text' },
+    ].forEach((f) => {
+      const field = document.createElement('label');
+      field.className = 'quote-form__field';
+      field.textContent = f.label;
+      const input = document.createElement('input');
+      input.type = f.type;
+      input.id = f.id;
+      input.required = true;
+      field.appendChild(input);
+      form.appendChild(field);
+    });
+
+    const submit = document.createElement('button');
+    submit.type = 'submit';
+    submit.className = 'btn btn--primary btn--small';
+    submit.textContent = 'Submit';
+    form.appendChild(submit);
+
+    $flyout.appendChild(form);
   }
 
   function closeFlyout() {
@@ -967,7 +1094,7 @@
   // whole bar overflowing) would ever prompt the floating panel to grow;
   // everyday cases — a message or CTA a bit longer than usual — would just
   // quietly ellipsize instead, even with plenty of viewport room to spare.
-  const TRUNCATABLE_SELECTOR = '.primary-nav, .primary-message, .primary-ctas .btn, .cta-textlink, .rotator__msg';
+  const TRUNCATABLE_SELECTOR = '.primary-nav, .primary-message, .primary-ctas .btn, .cta-textlink, .rotator__msg, .primary-prompt p';
 
   function barIsOverflowing() {
     const anyTruncated = Array.from($stickyBar.querySelectorAll(TRUNCATABLE_SELECTOR))
@@ -1080,24 +1207,47 @@
    * Survey (reuses the sticky layer) + Privacy (required UI, highest priority)
    * ------------------------------------------------------------------ */
 
+  // Survey and Quote both take over the primary zone, so they share a
+  // single snapshot of "what was there before" — whichever one released
+  // last restores it, and neither clobbers a snapshot the other already took.
+  function captureCompositionIfNeeded() {
+    if (state.priorComposition) return;
+    state.priorComposition = {
+      primaryType: state.primaryType,
+      primary: state.primary,
+      scrollSpy: state.scrollSpy,
+    };
+  }
+
+  function restoreCompositionIfIdle() {
+    if (state.surveyActive || state.quoteActive) return;
+    if (state.priorComposition) {
+      state.primaryType = state.priorComposition.primaryType;
+      state.primary = state.priorComposition.primary;
+      state.scrollSpy = state.priorComposition.scrollSpy;
+      state.priorComposition = null;
+    }
+  }
+
   function triggerSurvey() {
     if (state.privacyActive) {
       state.pendingSurvey = true;
       log('survey_triggered', 'waiting — privacy notice active');
       return;
     }
-    if (state.activeInteraction === 'chat' || state.chatWindowOpen) {
+    if (state.activeInteraction || state.chatWindowOpen) {
       state.pendingSurvey = true;
-      log('survey_triggered', 'waiting — chat in use');
+      log('survey_triggered', 'waiting — interaction in use');
+      return;
+    }
+    if (state.quoteActive) {
+      state.pendingSurvey = true;
+      log('survey_triggered', 'waiting — quote prompt active');
       return;
     }
     if (state.surveyActive) return;
 
-    state.priorComposition = {
-      primaryType: state.primaryType,
-      primary: state.primary,
-      scrollSpy: state.scrollSpy,
-    };
+    captureCompositionIfNeeded();
     state.surveyActive = true;
     state.dismissed = false;
     state.minimized = false;
@@ -1108,18 +1258,86 @@
 
   function dismissSurvey() {
     state.surveyActive = false;
-    if (state.priorComposition) {
-      state.primaryType = state.priorComposition.primaryType;
-      state.primary = state.priorComposition.primary;
-      state.scrollSpy = state.priorComposition.scrollSpy;
-      state.priorComposition = null;
-    }
+    restoreCompositionIfIdle();
     log('survey_dismissed');
+    fullRender();
+    maybeReleasePendingOverlays();
+  }
+
+  // A returning visitor with a qualifying action (a CTA click, opening
+  // chat/search, or reaching Shopping) sees this as the highest-priority
+  // optional engagement — it outranks Survey, which just gets bumped to
+  // pending and resumes once the quote prompt clears.
+  function triggerQuote() {
+    if (state.quoteActive || state.quoteDismissed || state.quoteSubmitted) return;
+    if (state.privacyActive) {
+      state.pendingQuote = true;
+      log('quote_triggered', 'waiting — privacy notice active');
+      return;
+    }
+    if (state.activeInteraction || state.chatWindowOpen) {
+      state.pendingQuote = true;
+      log('quote_triggered', 'waiting — interaction in use');
+      return;
+    }
+
+    if (state.surveyActive) {
+      state.surveyActive = false;
+      state.pendingSurvey = true;
+      log('survey_preempted', 'quote prompt has priority');
+    }
+
+    captureCompositionIfNeeded();
+    state.quoteActive = true;
+    state.dismissed = false;
+    state.minimized = false;
+    state.scrollVisible = true;
+    closeFlyout();
+    log('quote_triggered', 'shown in persistent layer — returning visitor');
     fullRender();
   }
 
-  function maybeReleasePendingSurvey() {
-    if (state.pendingSurvey && !state.privacyActive && state.activeInteraction !== 'chat' && !state.chatWindowOpen) {
+  function dismissQuote() {
+    state.quoteActive = false;
+    state.quoteDismissed = true;
+    closeFlyout();
+    restoreCompositionIfIdle();
+    log('quote_dismissed');
+    fullRender();
+    maybeReleasePendingOverlays();
+  }
+
+  // Leaves the "Get My Quote" prompt and its flyout confirmation on screen
+  // briefly (like the chat window's mock reply) instead of snapping straight
+  // back to whatever was showing before, so the confirmation is actually legible.
+  function submitQuote() {
+    state.quoteSubmitted = true;
+    log('cta_clicked', 'quote_submit (mock)');
+    renderQuoteForm();
+    setTimeout(() => {
+      if (!state.quoteActive) return;
+      state.quoteActive = false;
+      closeFlyout();
+      restoreCompositionIfIdle();
+      fullRender();
+      maybeReleasePendingOverlays();
+    }, 1400);
+  }
+
+  // Returning to the tab after a qualifying action is what a real site
+  // would use to decide "this visitor is worth a quote prompt."
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && state.hasQualifyingAction) triggerQuote();
+  });
+
+  function maybeReleasePendingOverlays() {
+    if (state.privacyActive || state.activeInteraction || state.chatWindowOpen) return;
+    if (state.pendingQuote) {
+      state.pendingQuote = false;
+      triggerQuote();
+      return;
+    }
+    if (state.pendingSurvey) {
       state.pendingSurvey = false;
       triggerSurvey();
     }
@@ -1140,7 +1358,7 @@
     $privacyBar.classList.remove('is-entering');
     log('privacy_' + result);
     updateStickyOffset();
-    maybeReleasePendingSurvey();
+    maybeReleasePendingOverlays();
   }
 
   $privacyAccept.addEventListener('click', () => resolvePrivacy('accepted'));
@@ -1148,6 +1366,12 @@
 
   document.getElementById('triggerPrivacy').addEventListener('click', triggerPrivacy);
   document.getElementById('triggerSurvey').addEventListener('click', triggerSurvey);
+  document.getElementById('triggerQuote').addEventListener('click', () => {
+    state.hasQualifyingAction = true;
+    state.quoteDismissed = false;
+    state.quoteSubmitted = false;
+    triggerQuote();
+  });
   document.getElementById('triggerStress').addEventListener('click', () => applyPreset('stress-test'));
 
   /* ------------------------------------------------------------------ *
@@ -1227,6 +1451,7 @@
     Object.assign(state, {
       legacyMode: false,
       surveyActive: false,
+      quoteActive: false,
       priorComposition: null,
       minimized: false,
       dismissed: false,

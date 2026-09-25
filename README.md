@@ -91,9 +91,9 @@ can be previewed either way.
 A small **Active layer** readout stays pinned to the top of the panel and
 updates on every state change, naming which tier of the priority model is
 currently in control (Required UI, Active interaction, Requested utility,
-Survey, Contextual content, or Primary content) — so the orchestration
-model's decision is visible in real time instead of only inferable from
-behavior.
+Lead capture / Quote, Survey, Contextual content, or Primary content) — so
+the orchestration model's decision is visible in real time instead of only
+inferable from behavior.
 
 ## Animation timing, and a more discrete minimize/restore
 
@@ -211,6 +211,42 @@ Two ways to show what happens when several things want the same real estate:
   The crowding badge reports which items collapsed, and admits when it's
   still tight even after collapsing everything it can.
 
+## Request a Quote: a returning-visitor lead-gen prompt
+
+A second scenario that reuses the same "takes over the primary zone"
+mechanism as Survey: if a visitor does something that signals real intent —
+clicks a CTA, opens Chat or Search, or scrolls into the Shopping section —
+and then leaves the tab and comes back, the sticky surface greets them with
+"Welcome back. Ready for pricing on the Aurelia GT?" and a **Get My Quote**
+button instead of whatever was showing before. Clicking it opens a small
+Name/Email/ZIP form in the same flyout panel that already hosts suggested
+chat prompts and search results, so there's no new UI surface to build —
+just a new occupant for the existing one. Submitting shows a mock
+confirmation; dismissing with the × restores whatever composition was
+showing beforehand, same as Survey.
+
+"Returning to the tab" is detected with the Page Visibility API
+(`visibilitychange` firing while the document is no longer hidden) —
+deliberately not a timer or an exit-intent listener, since the brief was
+specifically about a *return* visit, not time-on-page. Try it live via
+**Orchestration Demos → "Simulate Return Visit (Quote)"**, which fakes both
+the qualifying action and the tab return in one click, or the **Quote
+Prompt (Returning Visitor)** content preset.
+
+**Where it sits in the priority model:** Quote slots in as a second
+"optional engagement" layer alongside Survey, but outranks it — a
+returning visitor who already showed buying intent is a more valuable
+moment than a generic site survey. If Survey is already showing when Quote
+triggers, Survey is bumped back to pending (not lost) and resumes
+automatically once the quote prompt is dismissed or submitted. Quote still
+defers behind everything Survey already deferred behind — the privacy
+notice and any active Chat/Search interaction — since interrupting someone
+mid-conversation to ask for their email is worse than a few seconds' delay.
+Both layers now share one snapshot-and-restore mechanism
+(`captureCompositionIfNeeded` / `restoreCompositionIfIdle`) rather than each
+keeping its own copy of "what was there before," so whichever one releases
+last is the one that puts the original content back.
+
 ## What's V1 / V2 / V3
 
 The panel tags every control so you can tell a client, in one glance,
@@ -222,7 +258,8 @@ what's actually being proposed for the next release vs. what's exploratory.
   entrance animation, clean orchestration with required UI.
 - **V2 — Smarter Persistent Surface** (near-term roadmap): message
   rotation / ticker / manual rotator, minimize & dismiss-with-restore,
-  Scroll Spy (orientation, navigation, contextual CTA), Survey integration.
+  Scroll Spy (orientation, navigation, contextual CTA), Survey integration,
+  Request a Quote (returning-visitor lead-gen prompt).
 - **V3 — Sitewide Utility Layer** (future / exploratory only, labeled as
   such in the panel): richer Chat (device-simulated iMessage handoff),
   language selector, province selector, market/global selector.
@@ -264,12 +301,20 @@ itself into a chip.
   expected drawer behavior for a dev tool — close the panel to show the
   full clean customer view — but it's worth calling out explicitly so
   nobody mistakes it for a production layout bug.
-- **Priority model is intentionally simple.** The demo hard-codes exactly
-  one deferral rule set (privacy blocks survey; active chat blocks survey)
-  to make the "coordinated system, not competing z-indexes" argument
-  legible. A production version would need a more general priority queue
-  as more surfaces are added (e.g. what happens if Search and Chat are both
-  requested at once on a very narrow viewport).
+- **Priority model is intentionally simple.** The demo hard-codes a small,
+  fixed deferral rule set (privacy blocks everything below it; an active
+  chat/search interaction blocks Survey and Quote; Quote outranks Survey and
+  bumps it to pending) to make the "coordinated system, not competing
+  z-indexes" argument legible. A production version would need a more
+  general priority queue as more optional-engagement surfaces are added —
+  right now Quote and Survey are hand-ordered against each other, which
+  won't scale past two or three such layers.
+- **The Quote trigger is a plausible proxy, not real intent data.** "Any
+  CTA click, or opening chat/search, or reaching Shopping" is deliberately
+  broad so the demo is easy to trigger — a real implementation would use
+  actual signals (configurator progress, saved vehicle, dealer contact) and
+  probably a minimum time-away threshold before treating a tab return as
+  meaningful.
 - **Contextual CTA only has a visible home in the message+CTA composition.**
   If Scroll Spy's "Contextual CTA" mode is turned on while a preset like
   "Search Utility" (search-only) is active, there's nothing for it to
