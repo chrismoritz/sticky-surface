@@ -373,9 +373,27 @@
     return 'Primary persistent content';
   }
 
+  // Mirrors computeActiveLayerLabel()'s precedence, just collapsed down to
+  // which color key the readout should borrow — so the dev panel's summary
+  // uses the same chat/search/survey/quote/privacy hues as the live surface.
+  function computeActiveLayerKind() {
+    if (state.privacyActive) return 'privacy';
+    if (state.activeInteraction === 'chat' || state.chatWindowOpen) return 'chat';
+    if (state.activeInteraction === 'search') return 'search';
+    if (state.flyout === 'chat') return 'chat';
+    if (state.flyout === 'quote') return 'quote';
+    if (state.flyout === 'search') return 'search';
+    if (state.quoteActive) return 'quote';
+    if (state.surveyActive) return 'survey';
+    return null;
+  }
+
   function renderActiveLayer() {
     if (!$activeLayerReadout) return;
     $activeLayerReadout.innerHTML = `Active layer: <strong>${computeActiveLayerLabel()}</strong>`;
+    const kind = computeActiveLayerKind();
+    if (kind) $activeLayerReadout.dataset.kind = kind;
+    else delete $activeLayerReadout.dataset.kind;
   }
 
   /* ------------------------------------------------------------------ *
@@ -468,7 +486,7 @@
 
   function renderSurveyPrimary() {
     const wrap = document.createElement('div');
-    wrap.className = 'primary-prompt';
+    wrap.className = 'primary-prompt primary-prompt--survey';
 
     const p = document.createElement('p');
     p.textContent = 'Help us improve our site';
@@ -497,7 +515,7 @@
 
   function renderQuotePrimary() {
     const wrap = document.createElement('div');
-    wrap.className = 'primary-prompt';
+    wrap.className = 'primary-prompt primary-prompt--quote';
 
     const p = document.createElement('p');
     p.textContent = 'Welcome back. Ready for pricing on the Aurelia GT?';
@@ -960,7 +978,12 @@
   function renderSearchResults(query) {
     const q = query.trim().toLowerCase();
     const matches = q ? INVENTORY.filter((item) => item.toLowerCase().includes(q)) : INVENTORY.slice(0, 3);
-    openFlyout('search');
+    // Ensures the flyout is open without going back through openFlyout(),
+    // which delegates to this function for the 'search' kind — calling
+    // each other would recurse forever.
+    state.flyout = 'search';
+    $flyout.hidden = false;
+    $flyout.dataset.kind = 'search';
     $flyout.innerHTML = '';
     const title = document.createElement('p');
     title.className = 'flyout-title';
@@ -989,6 +1012,7 @@
   function openFlyout(kind) {
     state.flyout = kind;
     $flyout.hidden = false;
+    $flyout.dataset.kind = kind;
     if (kind === 'chat') {
       $flyout.innerHTML = '';
       const title = document.createElement('p');
@@ -1068,6 +1092,7 @@
     state.flyout = null;
     $flyout.hidden = true;
     $flyout.innerHTML = '';
+    delete $flyout.dataset.kind;
   }
 
   /* ------------------------------------------------------------------ *

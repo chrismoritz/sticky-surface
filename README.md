@@ -93,7 +93,38 @@ updates on every state change, naming which tier of the priority model is
 currently in control (Required UI, Active interaction, Requested utility,
 Lead capture / Quote, Survey, Contextual content, or Primary content) — so
 the orchestration model's decision is visible in real time instead of only
-inferable from behavior.
+inferable from behavior. It's also color-coded now — see below.
+
+## Color-coding chat, search, survey, quote, and privacy
+
+Every distinct message/utility type that can occupy the sticky surface now
+carries its own hue, so which kind of thing is on screen reads at a glance
+instead of requiring a close look at icon shape or copy:
+
+- **Chat** — blue (trigger border/icon, the "Ask a question" field, the
+  corner chat window's header rule, avatar, and composer send button).
+- **Search** — teal (trigger border/icon, the search field, result rows on
+  hover).
+- **Survey** — violet (a small dot before the message, and the "Take
+  Survey" button).
+- **Quote** — green (same treatment as Survey: dot + CTA button), also used
+  for the lead-gen form's focus ring and submit button.
+- **Privacy notice** — amber (a dot before the message, a top border on the
+  bar, and — not just decorative — the Accept button, which previously
+  rendered as black text with no visible button boundary on the bar's
+  already-black background).
+
+The flyout panel (suggested prompts / search results / the quote form)
+picks up a matching colored top border and section title, so it's obvious
+which trigger opened it even once it's detached from the pill that
+triggered it. The dev panel's **Active layer** readout uses the same five
+hues (in brighter dark-mode-safe variants) for its `<strong>` text, so the
+orchestration model's real-time state and the on-page color-coding tell
+the same story. Regular commerce content (message + CTA, section nav,
+search-inline) intentionally stays on the brand's neutral black/white —
+color is reserved for the small set of "something specific is happening"
+moments, not applied everywhere, so it doesn't get diluted into "this
+component is just colorful."
 
 ## Animation timing, and a more discrete minimize/restore
 
