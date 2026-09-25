@@ -294,6 +294,46 @@ Both layers now share one snapshot-and-restore mechanism
 keeping its own copy of "what was there before," so whichever one releases
 last is the one that puts the original content back.
 
+## Quality-of-life pass
+
+A scripted audit (every preset × presentation at desktop, tablet, and
+phone widths) checking for see-through surfaces, content spilling off
+screen, overlapping elements, undersized tap targets, and keyboard/click
+dismissal. What it found and what changed:
+
+- **Survey/Quote (and the chat/search states) were see-through.** Their
+  tints were 6–7% alpha colors *replacing* the surface's opaque white, so
+  the page showed through. The tints are now opaque mixes with white
+  (`color-mix(in srgb, <hue> 7%, #fff)`).
+- **Phones: the chat field ran off the right edge of the screen**, and in
+  the Stress Test the text input itself was squeezed to 4px wide. Below
+  480px the field now collapses to one round chat button that opens the
+  corner window directly — the field only ever handed off to that window
+  anyway, and tap-to-open is the conventional mobile pattern.
+- **Squeezed CTA labels were hard-clipped mid-letter** ("Schedule a Test
+  D") instead of ending in an ellipsis: `.btn` is `inline-flex`, and
+  `text-overflow` does nothing on a flex container. CTA buttons and text
+  links now render as blocks so the ellipsis actually applies.
+- **Survey/Quote prompts were ellipsized to a word or two on phones.** They
+  now wrap to two lines, and on phones take their own row above the
+  utilities (compact softens from a pill to a rounded card while a prompt
+  shows).
+- **The corner chat window covered the sticky bar**, including the field
+  that opened it. It now sits just above the bar and follows it as the bar
+  grows, shrinks, or moves above the privacy notice.
+- **Nothing responded to Escape or clicking away.** Escape now closes an
+  open flyout or the chat window (returning focus to the bar's chat button
+  — deliberately not the text field, since focusing that counts as
+  reopening chat). Clicking outside closes suggested prompts / search
+  results / nav overflow. The quote form is exempt from click-away so a
+  stray click can't throw away what someone typed; Escape or × still
+  close it.
+- **Smaller fixes:** text inputs now fill their pill's full height as a tap
+  target (was 18px); the search pill matches the chat pill's height; the
+  text-link CTA got a taller hit area; the Survey/Quote dismiss × uses the
+  same icon as the bar's other controls instead of a tiny text glyph; empty
+  utility/control zones no longer reserve a gap in the row.
+
 ## What's V1 / V2 / V3
 
 The panel tags every control so you can tell a client, in one glance,
@@ -332,15 +372,16 @@ itself into a chip.
 
 ## Notable UX/technical calls worth flagging to stakeholders
 
-- **Very content-heavy compositions in Floating at extreme mobile widths
-  can still run out of room.** "Schedule a Test Drive" + a full "Ask a
-  question" field is a lot to ask a ~360px-wide floating card to hold.
-  Text now shrinks and truncates with an ellipsis rather than overflowing
-  or bleeding outside the card, but that's a graceful failure, not a
-  design recommendation — the "Mobile Compact" preset (shorter copy: "Test
-  Drive" + a chat icon) is the actual intended pattern for narrow
-  viewports, exactly as the original brief called out (composition should
-  change by breakpoint, not just shrink in place).
+- **Phones change the composition, not just the size.** Below 480px the
+  inline "Ask a question" field becomes a single round chat button that
+  opens the corner window directly (see Quality-of-life pass), and a
+  Survey/Quote prompt gets its own row. Beyond that, anything still too
+  long ends in an ellipsis rather than clipping or overflowing — a graceful
+  failure, not a design recommendation. The "Mobile Compact" preset
+  (shorter copy: "Test Drive" + a chat icon) remains the intended pattern
+  for narrow viewports. The Quote copy ("Welcome back. Ready for pricing on
+  the Aurelia GT?") is long enough to hit the two-line cap on the smallest
+  phones; shorter copy would read better there.
 - **The control panel occupies real screen width when open.** It lives
   top-left and stops 150px short of the viewport bottom specifically so it
   never covers the sticky footer, across every presentation — but it still

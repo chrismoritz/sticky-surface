@@ -411,6 +411,7 @@
   function updateStickyOffset() {
     const offset = state.privacyActive ? $privacyBar.offsetHeight : 0;
     document.documentElement.style.setProperty('--sticky-offset-bottom', offset + 'px');
+    if (state.chatWindowOpen) positionChatWindow();
   }
 
   /* ------------------------------------------------------------------ *
@@ -514,7 +515,7 @@
     close.type = 'button';
     close.className = 'sticky__icon-btn';
     close.setAttribute('aria-label', 'Dismiss survey');
-    close.innerHTML = '&times;';
+    close.innerHTML = closeIcon();
     close.addEventListener('click', () => dismissSurvey());
     wrap.appendChild(close);
 
@@ -543,7 +544,7 @@
     close.type = 'button';
     close.className = 'sticky__icon-btn';
     close.setAttribute('aria-label', 'Dismiss quote prompt');
-    close.innerHTML = '&times;';
+    close.innerHTML = closeIcon();
     close.addEventListener('click', () => dismissQuote());
     wrap.appendChild(close);
 
@@ -742,6 +743,9 @@
   function chatIcon() {
     return '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 4h16v12H7l-3 3V4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
   }
+  function closeIcon() {
+    return '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  }
   function searchIcon() {
     return '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M20 20l-4.3-4.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
   }
@@ -819,8 +823,11 @@
 
     const send = document.createElement('button');
     send.type = 'button';
-    send.setAttribute('aria-label', 'Send message — opens chat window');
-    send.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 12h16M14 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    send.setAttribute('aria-label', 'Ask a question — opens chat window');
+    // Two icons, one shown per breakpoint: a send arrow next to the text field
+    // on wider screens; on phones (where CSS hides the field) a chat bubble.
+    send.innerHTML = '<svg class="icon-send" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 12h16M14 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      + chatIcon().replace('<svg ', '<svg class="icon-open-chat" ');
     const handoff = () => {
       const text = input.value.trim();
       log('cta_clicked', 'chat_send (mock)');
@@ -854,9 +861,29 @@
 
   let chatReplyIndex = 0;
 
+  // Keeps the corner window sitting just above the sticky surface instead of
+  // on top of it, so the entry point that opened it stays visible.
+  function positionChatWindow() {
+    let lift = 0;
+    if ($sticky.dataset.visible === 'true') {
+      const top = $sticky.querySelector('.sticky__surface').getBoundingClientRect().top;
+      lift = Math.max(0, window.innerHeight - top);
+    } else if (state.privacyActive) {
+      lift = $privacyBar.offsetHeight;
+    }
+    document.documentElement.style.setProperty('--chat-lift', lift + 'px');
+  }
+
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(() => { if (state.chatWindowOpen) positionChatWindow(); })
+      .observe($sticky.querySelector('.sticky__surface'));
+  }
+  window.addEventListener('resize', () => { if (state.chatWindowOpen) positionChatWindow(); });
+
   function openChatWindow(initialMessage) {
     if (!state.chatWindowOpen) {
       state.chatWindowOpen = true;
+      positionChatWindow();
       if (state.chatWindowMessages.length === 0) pushChatWindowMessage('assistant', CHAT_WINDOW_GREETING);
       $chatWindow.hidden = false;
       $chatWindow.classList.remove('is-entering');
@@ -875,10 +902,19 @@
   }
 
   function closeChatWindow() {
+    const hadFocus = $chatWindow.contains(document.activeElement);
     state.chatWindowOpen = false;
     $chatWindow.hidden = true;
     log('chat_closed', 'corner window');
     maybeReleasePendingOverlays();
+    // Return focus to the sticky bar's chat entry point (looked up fresh —
+    // a re-render may have replaced the original element). Deliberately the
+    // send/trigger button, not the text field: focusing the field would
+    // count as reopening chat.
+    if (hadFocus) {
+      const entry = $utilities.querySelector('.chat-input-field button, .chat-trigger');
+      if (entry) entry.focus({ preventScroll: true });
+    }
   }
 
   function pushChatWindowMessage(from, text) {
@@ -1879,6 +1915,20 @@
     if (e.key !== 'Escape') return;
     if (!$frameOverlay.hidden) closeFramePreview();
     else if (!$chaosOverlay.hidden) { $chaosOverlay.hidden = true; log('chaos_closed'); }
+    else if (state.chatWindowOpen && $chatWindow.contains(document.activeElement)) closeChatWindow();
+    else if (state.flyout) { closeFlyout(); log('flyout_closed', 'escape'); }
+    else if (state.chatWindowOpen) closeChatWindow();
+  });
+
+  // Clicking away dismisses prompts/results, like any popover. The quote
+  // form is exempt: an accidental click shouldn't throw away what someone
+  // has typed — Escape or the prompt's × still close it deliberately.
+  document.addEventListener('pointerdown', (e) => {
+    if (!state.flyout || state.flyout === 'quote') return;
+    const t = e.target;
+    if ($sticky.contains(t) || $chatWindow.contains(t) || $panel.contains(t) || $panelToggle.contains(t)) return;
+    closeFlyout();
+    log('flyout_closed', 'outside click');
   });
 
   /* ------------------------------------------------------------------ *

@@ -21,16 +21,19 @@
      occupy the sticky surface, so they're tellable apart at a glance
      instead of all reading as the same neutral black/white chrome. */
   --chat: #2a4bd7;
-  --chat-tint: rgba(42,75,215,.07);
+  /* Tints are opaque mixes with white, not alpha colors: they replace the
+     surface's own background, so any transparency here makes the whole bar
+     see-through. */
+  --chat-tint: color-mix(in srgb, var(--chat) 7%, #fff);
   --chat-border: rgba(42,75,215,.4);
   --search: #0d7377;
-  --search-tint: rgba(13,115,119,.07);
+  --search-tint: color-mix(in srgb, var(--search) 7%, #fff);
   --search-border: rgba(13,115,119,.4);
   --survey: #6b3fa0;
-  --survey-tint: rgba(107,63,160,.06);
+  --survey-tint: color-mix(in srgb, var(--survey) 7%, #fff);
   --survey-border: rgba(107,63,160,.4);
   --quote: #1f7a4d;
-  --quote-tint: rgba(31,122,77,.06);
+  --quote-tint: color-mix(in srgb, var(--quote) 7%, #fff);
   --quote-border: rgba(31,122,77,.4);
   --privacy: #c9962f;
 
@@ -306,6 +309,9 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
    full natural width regardless of how little room was actually available. */
 .sticky__utilities { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
 .sticky__controls { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; margin-left: 4px; }
+/* Zones with nothing to show shouldn't still claim a gap/margin in the row. */
+.sticky__utilities:empty,
+.sticky__controls:not(:has(> :not([hidden]))) { display: none; }
 
 /* Visibility + entrance */
 .sticky[data-visible="false"] { display: none; }
@@ -475,7 +481,11 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .primary-message { margin: 0; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .primary-ctas { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .primary-ctas .btn {
-  flex: 0 1 auto; min-width: 0; justify-content: flex-start;
+  /* block, not the base .btn inline-flex: text-overflow has no effect on a
+     flex container, so as inline-flex a squeezed label got hard-clipped
+     mid-letter ("Schedule a Test D") instead of ending in an ellipsis. */
+  display: block; text-align: center;
+  flex: 0 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -494,9 +504,10 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .primary-nav__more:hover { color: var(--ink); background: var(--mist); }
 
 .cta-textlink {
-  display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0;
+  display: block; flex: 0 1 auto; min-width: 0; /* block for the same ellipsis reason as .primary-ctas .btn */
   color: var(--ink); font-weight: 600; font-size: .9rem; text-decoration: underline; text-underline-offset: 3px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: 10px 0; /* taller hit area without changing how the link looks */
 }
 .cta-textlink:hover { opacity: .7; }
 
@@ -558,7 +569,10 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .sticky__icon-btn[hidden] { display: none; }
 
 /* -------- Chat widget -------- */
-.chat-widget { display: flex; align-items: center; }
+.chat-widget { display: flex; align-items: center; min-width: 0; }
+/* Icon-only triggers are already at their minimum useful size — they should
+   never be the thing that gives up width when the bar gets tight. */
+.chat-trigger--icon-only, .search-trigger--icon-only { flex: 0 0 auto; }
 
 #stickyUtilities.is-collapsed .chat-trigger span,
 #stickyUtilities.is-collapsed .search-trigger span { display: none; }
@@ -583,7 +597,9 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .chat-input-field > svg:first-child { flex: 0 0 auto; color: var(--chat); }
 .chat-input-field input {
   border: none; outline: none; font: inherit; font-size: .88rem; flex: 1 1 auto; min-width: 0; background: transparent;
+  align-self: stretch; /* whole pill height is the tap target, not just the text line */
 }
+.chat-input-field .icon-open-chat { display: none; }
 .chat-input-field button {
   border: none; background: var(--chat); color: #fff; border-radius: 50%;
   width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex: 0 0 auto;
@@ -605,9 +621,9 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .search-field {
   display: flex; align-items: center; gap: 8px;
   border: 1px solid var(--search-border); border-radius: var(--radius-pill);
-  padding: 6px 14px; background: #fff; min-width: 180px;
+  padding: 6px 14px; background: #fff; min-width: 180px; min-height: 42px;
 }
-.search-field input { border: none; outline: none; font: inherit; font-size: .88rem; flex: 1 1 auto; min-width: 0; background: transparent; }
+.search-field input { border: none; outline: none; font: inherit; font-size: .88rem; flex: 1 1 auto; min-width: 0; background: transparent; align-self: stretch; }
 .search-field svg { flex: 0 0 auto; color: var(--search); }
 .search-trigger {
   border: 1px solid var(--search-border); background: #fff; border-radius: var(--radius-pill);
@@ -699,7 +715,35 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 @media (max-width: 480px) {
   .sticky__utilities .chat-trigger span,
   .sticky__utilities .search-trigger span { display: none; }
-  .sticky__utilities .chat-trigger, .sticky__utilities .search-trigger { padding: 0; width: 44px; justify-content: center; border-radius: 50%; }
+  .sticky__utilities .chat-trigger, .sticky__utilities .search-trigger { padding: 0; width: 44px; justify-content: center; border-radius: 50%; flex: 0 0 auto; }
+  /* The inline "Ask a question" field can't share a phone-width bar with a
+     CTA (or a search icon) without one of them becoming unusable — in the
+     Stress Test it was left a 4px-wide input. Since the field only ever hands
+     off to the corner chat window anyway, on phones it collapses to that
+     hand-off alone: one round chat button, the conventional mobile pattern. */
+  .chat-input-field { min-width: 0; padding: 0; border: none; background: none; }
+  .chat-input-field > svg:first-child, .chat-input-field input, .chat-input-field .icon-send { display: none; }
+  .chat-input-field .icon-open-chat { display: block; }
+  .chat-input-field button { width: 44px; height: 44px; }
+  .chat-widget { flex-shrink: 0; } /* the 44px button is already its minimum */
+
+  /* Survey/Quote are the "prominent" moments — on a phone, give the prompt
+     its own row instead of squeezing it to one or two words beside the
+     utilities. The pill shape can't hold two rows, so compact softens to a
+     rounded card while a prompt is showing. */
+  .sticky[data-survey="true"] .sticky__bar,
+  .sticky[data-quote="true"] .sticky__bar { flex-wrap: wrap; row-gap: 8px; }
+  .sticky[data-survey="true"] .sticky__primary,
+  .sticky[data-quote="true"] .sticky__primary { flex: 1 1 100%; }
+  .sticky[data-presentation="compact"][data-survey="true"] .sticky__surface,
+  .sticky[data-presentation="compact"][data-quote="true"] .sticky__surface { border-radius: var(--radius-lg); }
+
+  /* On a phone, a short prompt like "Help us improve our site" shouldn't be
+     ellipsized — let it take a second line instead (still capped at two). */
+  .primary-prompt p {
+    white-space: normal; line-height: 1.3;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  }
 }
 
 /* ==========================================================================
@@ -936,9 +980,10 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
    ========================================================================== */
 
 .chat-window {
-  position: fixed; right: 20px; bottom: 20px; z-index: 520;
+  position: fixed; right: 20px; bottom: calc(var(--chat-lift, 0px) + 20px); z-index: 520;
   width: 360px; max-width: calc(100vw - 32px);
-  height: 500px; max-height: calc(100vh - 100px);
+  height: 500px; max-height: calc(100vh - var(--chat-lift, 0px) - 100px);
+  transition: bottom var(--dur-med) var(--ease);
   background: var(--paper); color: var(--ink);
   border-radius: var(--radius-lg); border: 1px solid var(--line);
   box-shadow: var(--shadow-elevated);
@@ -953,6 +998,7 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 }
 @media (prefers-reduced-motion: reduce) {
   .chat-window.is-entering { animation: none; }
+  .chat-window { transition: none; }
 }
 
 .chat-window__header {
@@ -999,7 +1045,7 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 
 @media (max-width: 480px) {
   .chat-window {
-    right: 12px; bottom: 12px;
-    width: calc(100vw - 24px); height: min(520px, calc(100vh - 90px));
+    right: 12px; bottom: calc(var(--chat-lift, 0px) + 12px);
+    width: calc(100vw - 24px); height: min(520px, calc(100vh - var(--chat-lift, 0px) - 90px));
   }
 }
