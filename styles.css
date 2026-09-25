@@ -669,6 +669,18 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .sticky[data-survey="true"] .sticky__surface { background: var(--survey-tint); }
 .sticky[data-quote="true"] .sticky__surface { background: var(--quote-tint); }
 
+/* -------- Whole-surface tint for every other colorable state -------- *
+ * data-kind mirrors the same "Active layer" the dev panel reports, so the
+ * surface itself always carries a matching background — not just when
+ * Survey/Quote take over the primary zone, but also while chat or search
+ * is actively in use or its flyout is open. Kept as its own attribute
+ * (rather than folded into data-survey/data-quote) since those two also
+ * drive other logic and shouldn't be repurposed for this. */
+.sticky[data-kind="chat"] .sticky__surface { background: var(--chat-tint); }
+.sticky[data-kind="search"] .sticky__surface { background: var(--search-tint); }
+.sticky[data-kind="survey"] .sticky__surface { background: var(--survey-tint); }
+.sticky[data-kind="quote"] .sticky__surface { background: var(--quote-tint); }
+
 /* ==========================================================================
    Responsive composition for the sticky bar
    ========================================================================== */

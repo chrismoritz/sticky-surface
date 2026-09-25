@@ -126,6 +126,22 @@ color is reserved for the small set of "something specific is happening"
 moments, not applied everywhere, so it doesn't get diluted into "this
 component is just colorful."
 
+The whole sticky surface — not just Survey/Quote's primary-zone takeover —
+now carries a matching background tint for every one of these states: it
+washes chat-blue while the chat field is focused, the corner window is
+open, or its suggested-prompts flyout is showing; teal for search focus or
+open results; on top of the violet/green Survey/Quote already had. This
+is driven by one `data-kind` attribute on the sticky element, recomputed
+by the same function that drives the panel's Active layer readout, so the
+two can't drift out of sync. Getting this right surfaced (and fixed) a
+subtler bug: because blur events and Quote's delayed auto-dismiss timer
+didn't go through the same code path as everything else, the tint could
+get stuck showing the wrong color after the state that caused it had
+already ended — e.g. the surface staying quote-green after its "Request
+received" confirmation auto-closed. Both `openFlyout()`/`closeFlyout()`
+and the two blur handlers now refresh the readout directly instead of
+relying on an event happening to call `log()` afterward.
+
 ## Animation timing, and a more discrete minimize/restore
 
 **Animation timing** (Visibility & Entrance): Snappy / Standard / Relaxed.

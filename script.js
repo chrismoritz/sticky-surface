@@ -389,9 +389,17 @@
   }
 
   function renderActiveLayer() {
+    const kind = computeActiveLayerKind();
+
+    // Drives the surface's own background tint — every colorable state
+    // (chat/search/survey/quote) gets one, not just Survey/Quote's
+    // primary-zone takeover, so no state is left on the plain neutral
+    // background while something specific is happening.
+    if (kind && kind !== 'privacy') $sticky.dataset.kind = kind;
+    else delete $sticky.dataset.kind;
+
     if (!$activeLayerReadout) return;
     $activeLayerReadout.innerHTML = `Active layer: <strong>${computeActiveLayerLabel()}</strong>`;
-    const kind = computeActiveLayerKind();
     if (kind) $activeLayerReadout.dataset.kind = kind;
     else delete $activeLayerReadout.dataset.kind;
   }
@@ -804,6 +812,7 @@
     });
     input.addEventListener('blur', () => {
       state.activeInteraction = null;
+      renderActiveLayer();
       maybeReleasePendingOverlays();
     });
     field.appendChild(input);
@@ -968,6 +977,7 @@
     input.addEventListener('input', () => renderSearchResults(input.value));
     input.addEventListener('blur', () => {
       state.activeInteraction = null;
+      renderActiveLayer();
       maybeReleasePendingOverlays();
     });
     field.appendChild(input);
@@ -1007,6 +1017,7 @@
       });
     }
     $flyout.appendChild(list);
+    renderActiveLayer();
   }
 
   function openFlyout(kind) {
@@ -1034,6 +1045,7 @@
     } else if (kind === 'quote') {
       renderQuoteForm();
     }
+    renderActiveLayer();
   }
 
   function renderQuoteForm() {
@@ -1093,6 +1105,7 @@
     $flyout.hidden = true;
     $flyout.innerHTML = '';
     delete $flyout.dataset.kind;
+    renderActiveLayer();
   }
 
   /* ------------------------------------------------------------------ *
@@ -1345,6 +1358,7 @@
       closeFlyout();
       restoreCompositionIfIdle();
       fullRender();
+      renderActiveLayer();
       maybeReleasePendingOverlays();
     }, 1400);
   }
