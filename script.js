@@ -459,6 +459,7 @@
     if (kind && kind !== 'privacy') $sticky.dataset.kind = kind;
     else delete $sticky.dataset.kind;
 
+    renderDemoNotes();
     if (!$activeLayerReadout) return;
     const arriving = Object.entries(scheduled).map(([k, v]) =>
       `${k === 'quote' ? 'Quote prompt' : 'Survey'} arriving in ${Math.max(0, (v.dueAt - performance.now()) / 1000).toFixed(1)}s`);
@@ -831,6 +832,7 @@
 
     if (state.chat !== 'off') $utilities.appendChild(buildChatWidget());
     if (state.search !== 'off') $utilities.appendChild(buildSearchWidget());
+    renderDemoNotes();
   }
 
   function buildChatWidget() {
@@ -2142,6 +2144,10 @@
       surveyActive: false,
       quoteActive: false,
       quoteDraft: null,
+      // A prompt held back in the previous scene (e.g. behind the Stress
+      // Test's privacy notice) shouldn't surface in this one.
+      pendingSurvey: false,
+      pendingQuote: false,
       priorComposition: null,
       minimized: false,
       dismissed: false,
@@ -2344,6 +2350,7 @@
   const $flowNote = document.getElementById('flowNote');
 
   function setActiveFlowStep(step) {
+    activeFlowStep = step;
     document.querySelectorAll('#flowButtons button[data-flow]').forEach((b) => {
       const on = Number(b.dataset.flow) === step;
       b.classList.toggle('is-active', on);
@@ -2351,6 +2358,7 @@
     });
     $flowNote.hidden = !step;
     $flowNote.textContent = step ? FLOW_NOTES[step] : '';
+    renderDemoNotes();
   }
 
   function runFlowStep(step) {
@@ -2598,7 +2606,7 @@
   document.addEventListener('pointerdown', (e) => {
     if (!state.flyout || state.flyout === 'quote') return;
     const t = e.target;
-    if ($sticky.contains(t) || $chatWindow.contains(t) || $panel.contains(t) || $panelToggle.contains(t)) return;
+    if ($sticky.contains(t) || $chatWindow.contains(t) || $panel.contains(t) || $panelToggle.contains(t) || t.closest?.('#demoNotes')) return;
     closeFlyout();
     log('flyout_closed', 'outside click');
   });
@@ -2635,7 +2643,334 @@
     applyControlsVisibility();
     setupRotationTimer();
     evaluateCrowding();
+    // Demo notes anchor to elements this render just created or revealed.
+    renderDemoNotes();
   }
+
+  /* ------------------------------------------------------------------ *
+   * Demo notes — floating tooltips that explain each demo while it runs:
+   * how it works, and why it matters. Anchored to the real element being
+   * demonstrated, and driven by live state, so they follow the scenario as
+   * it plays out (a prompt on its way → arriving → being preempted).
+   * Prototype chrome only: dev-tool styling, never in the embedded preview.
+   * ------------------------------------------------------------------ */
+
+  // `var` (hoisted) for both: renderActiveLayer() — which calls
+  // renderDemoNotes() — can run before this section of the file executes.
+  var activeFlowStep = null;
+  var demoNotesReady = false;
+  const $demoNotes = document.getElementById('demoNotes');
+  const $demoNotesToggle = document.getElementById('demoNotesToggle');
+  const SURFACE = '#sticky .sticky__surface';
+  // Two side by side on desktop; one at a time on phones, where two stacked
+  // notes would cover most of the screen (dismissing one reveals the next).
+  const maxNotes = () => (document.documentElement.clientWidth <= 720 ? 1 : 2);
+  const dismissedNotes = new Set();
+  let notesScenario = null;
+  let renderedNotesKey = '';
+  let notesRaf = null;
+
+  const note = (id, anchor, title, how, why, extra = {}) => ({ id, anchor, title, how, why, ...extra });
+  const PROBLEM = { labels: ['How it works today', 'The problem'] };
+
+  // Notes for the scenario itself — keyed by preset, or by Demo Flow step
+  // where the step changes more than its preset (4: presentation, 5: V2).
+  const SCENARIO_NOTES = {
+    'current-state': [
+      note('legacy-footer', '#legacyFooter', 'A standalone promo footer',
+        'A fixed footer built as its own component, with its own styling and stacking order.',
+        'Nothing coordinates it with other persistent UI, so every new need — chat, surveys, privacy — ships as one more floating layer.', PROBLEM),
+      note('legacy-chat', '#legacyChatFab', 'A separate chat bubble',
+        "The chat vendor's widget is pinned in the corner on its own, unaware the footer exists.",
+        'The two compete for attention and collide on small screens; neither can make room for the other.', PROBLEM),
+    ],
+    'tesla-inspired': [
+      note('tesla-surface', SURFACE, 'One coordinated surface',
+        'The test-drive CTA and a chat entry point live in a single floating panel that sizes itself to its content.',
+        "One persistent element instead of two — chat becomes part of the brand's surface, not a vendor bubble on top of it."),
+      note('tesla-chat', '.chat-input-field', 'Chat entry point, not a chat window',
+        'Typing here hands off to a conventional corner chat window. On phones it collapses to a single chat button.',
+        'Visitors can start a question without hunting for a bubble, and the conversation still gets a full-size window.', { kind: 'chat' }),
+    ],
+    'hvb-chat': [
+      note('hvb', SURFACE, 'Commerce action + help, one row',
+        '"Search Inventory" is the primary action, with an "Ask Us" chat trigger beside it that opens the corner chat window.',
+        'Pairs the highest-intent action with a way to get help — the pattern most shopping pages need — without two separate widgets.'),
+    ],
+    'brand-story': [
+      note('brand', SURFACE, 'Editorial content, lighter touch',
+        'Same component, but the CTA renders as a text link and there are no utilities.',
+        "Brand storytelling (F1, concept cars) doesn't need a hard-sell button. The component adapts its tone per placement instead of forcing one style."),
+    ],
+    'search-utility': [
+      note('search-inline', SURFACE, 'Search as the whole surface',
+        'The primary zone becomes a search field that stretches across the bar; results open in the panel above it.',
+        'On inventory-heavy pages, search is the most useful persistent action — and it needs no extra widget.', { kind: 'search' }),
+    ],
+    'message-cta': [
+      note('message-cta', SURFACE, 'The simplest composition',
+        'A short message and one CTA, centered together as a single cluster.',
+        "It replaces today's footer one-for-one, so V1 can ship without new content types or approvals."),
+    ],
+    'section-navigator': [
+      note('section-nav', '.primary-nav', 'Persistent section navigation',
+        'Scroll Spy highlights the section in view, and each link jumps to its section. When the bar gets crowded it collapses to the active section plus "More".',
+        'Long model pages get wayfinding that follows the visitor, without a second sticky nav bar.'),
+    ],
+    'mobile-compact': [
+      note('mobile', SURFACE, 'Composition changes by breakpoint',
+        'Shorter copy ("Test Drive") and an icon-only chat button in a compact pill.',
+        'On phones the component switches to a reduced arrangement instead of shrinking the desktop one until it truncates.'),
+    ],
+    'chat-search': [
+      note('cs-chat', '.chat-input-field', 'Chat is blue',
+        'Focus the field and the whole surface tints blue; the prompts panel and corner chat window use the same color.',
+        'Visitors — and anyone reading analytics — can tell which utility is active at a glance.', { kind: 'chat' }),
+      note('cs-search', '.search-trigger, .search-field', 'Search is teal',
+        'Opening search tints the surface teal and shows results in the panel above. Esc or clicking away closes it.',
+        'Two utilities share one surface without looking alike or fighting over position.', { kind: 'search' }),
+    ],
+    'survey-integration': [
+      note('survey-scenario', SURFACE, 'The survey lives in the surface',
+        "Instead of the survey vendor's own popup, the prompt renders inside this component and hands the space back when it's done.",
+        'One persistent layer for everything, so a survey never covers the footer or the chat.', { kind: 'survey' }),
+    ],
+    'quote-prompt': [
+      note('quote-scenario', SURFACE, 'Returning-visitor quote prompt',
+        'Triggered when someone who clicked a CTA, used chat or search, or reached Shopping comes back to the tab.',
+        'It targets intent the visitor already showed, instead of asking everyone for their details.', { kind: 'quote' }),
+    ],
+    'survey-quote-handoff': [
+      note('handoff', SURFACE, 'Two prompts, one surface',
+        'The Survey arrives after the Prompt delay; a returning-visitor Quote is scheduled a few seconds later.',
+        'Watch the component decide between them — the visitor never sees two popups stacked on top of each other.'),
+    ],
+    'stress-test': [
+      note('stress', SURFACE, 'Everything at once',
+        'Section nav, chat, search, the privacy notice, a survey, and a quote prompt are all requested together.',
+        'One priority model resolves it (see the Active layer readout) instead of every team shipping its own z-index.'),
+    ],
+    'kitchen-sink': [
+      note('kitchen', SURFACE, 'The busy edge case',
+        'Nav, chat, and search all at once. Floating and compact widen first; with Auto-collapse on, nav gives way before the utilities do.',
+        'A measured, priority-ordered fallback instead of content silently overflowing or overlapping.'),
+    ],
+    'flow-4': [
+      note('presentation', SURFACE, 'Same content, different shell',
+        'Full-width bar, floating panel, or compact pill — each with opaque, translucent, or bordered finishes — all from one component.',
+        'Page and brand teams choose a presentation per placement without a new build.'),
+    ],
+    'flow-5': [
+      note('v2-context', SURFACE, 'The CTA follows the page',
+        'Scroll Spy swaps the CTA to match the section in view, cross-fading as it changes; messages rotate and pause on hover.',
+        'The footer stays relevant all the way down the page instead of repeating one message.'),
+    ],
+  };
+
+  const promptName = (kind) => (kind === 'quote' ? 'Quote prompt' : 'Survey');
+
+  // Notes about what is happening right now, regardless of scenario.
+  // These come first — they explain the thing the audience is looking at.
+  function situationalNotes() {
+    const out = [];
+    if (!$chaosOverlay.hidden) {
+      out.push(note('chaos', '.chaos-survey', 'Four widgets, no shared layer',
+        'A promo footer, chat bubble, survey card, and cookie banner — each from a different team or vendor, each fixed-positioned with its own z-index.',
+        'Nothing arbitrates, so they bury each other. This is exactly what the shared persistent layer prevents.', PROBLEM));
+      return out;
+    }
+    if (state.privacyActive) {
+      out.push(note('privacy', '#privacyBar p', 'Required UI always wins',
+        'The privacy notice takes the bottom edge and the sticky surface lifts above it. Prompts that come due wait until it is answered.',
+        'Compliance UI is never covered, and never competes with marketing for the same spot.', { kind: 'privacy' }));
+    }
+    const held = state.pendingQuote ? 'quote' : state.pendingSurvey ? 'survey' : null;
+    const blocker = state.privacyActive ? 'the privacy notice' : (state.chatWindowOpen || state.activeInteraction) ? 'an active chat or search' : null;
+    if (held && blocker) {
+      out.push(note(`held-${held}`, SURFACE, `${promptName(held)} is waiting its turn`,
+        `It came due, but ${blocker} has priority. It will follow about a second after that clears.`,
+        'Prompts never stack on top of required UI or interrupt someone mid-conversation.', { kind: held }));
+    }
+    if (state.chatWindowOpen) {
+      out.push(note('chat-window', '#chatWindow', 'Hand-off to a real chat window',
+        'The bar only holds the entry point; the conversation continues in a corner window that sits just above the bar. Esc closes it and returns focus.',
+        "A full conversation doesn't get crammed into the footer, and the entry point stays visible.", { kind: 'chat' }));
+    }
+    if (state.flyout === 'quote' && !state.quoteSubmitted) {
+      out.push(note('quote-form', '.quote-flow', 'The full form, in four short steps',
+        'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review. Optional fields are tucked behind one toggle, and progress is kept if the panel closes.',
+        "The same data as the long production form, with far less on screen at once — and nothing the page already knows is asked twice.", { kind: 'quote' }));
+    } else if (state.quoteActive && state.flyout !== 'quote') {
+      out.push(state.pendingSurvey
+        ? note('quote-over-survey', '.primary-prompt--quote', 'Quote outranks Survey',
+          'The higher-value lead prompt animated over the survey. The survey is queued, not lost — dismiss the Quote and it comes back.',
+          'When two prompts compete, the component decides, rather than showing the visitor both.', { kind: 'quote' })
+        : note('quote-active', '.primary-prompt--quote', 'The quote prompt takes over',
+          'It temporarily replaces the footer content (green dot, green button) and restores it when dismissed or sent.',
+          'A lead-gen moment that uses the space already there, rather than a modal over the page.', { kind: 'quote' }));
+    }
+    if (state.surveyActive) {
+      out.push(note('survey-active', '.primary-prompt--survey', 'The survey takes over',
+        'The survey briefly replaces the footer content (violet dot, violet button), then hands the space back.',
+        'No separate survey popup competing with the footer — one layer, one thing at a time.', { kind: 'survey' }));
+    }
+    const coming = Object.keys(scheduled);
+    if (coming.length && !state.surveyActive && !state.quoteActive && !held) {
+      const kind = coming.includes('survey') ? 'survey' : 'quote';
+      out.push(note(`scheduled-${kind}`, SURFACE, `${promptName(kind)} on its way`,
+        "It's scheduled rather than shown: it arrives after the Prompt delay (the panel counts down), and waits its turn if something more important is showing.",
+        'A prompt that waits a moment feels less like an ambush than one that fires on page load.', { kind }));
+    }
+    return out;
+  }
+
+  function currentNotesScenario() {
+    return activeFlowStep === 4 || activeFlowStep === 5 ? `flow-${activeFlowStep}` : state.activePreset;
+  }
+
+  function anchorFor(n) {
+    const el = document.querySelector(n.anchor);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return r.width || r.height ? el : null;
+  }
+
+  function renderDemoNotes() {
+    if (!demoNotesReady) return;
+    const scenario = currentNotesScenario();
+    if (scenario !== notesScenario) { notesScenario = scenario; dismissedNotes.clear(); }
+
+    let notes = [];
+    const hideForOverlay = $frameOverlay && !$frameOverlay.hidden;
+    if ($demoNotesToggle.checked && !embedded && !hideForOverlay) {
+      const seen = new Set();
+      notes = [...situationalNotes(), ...(SCENARIO_NOTES[scenario] || [])]
+        .filter((n) => !seen.has(n.id) && seen.add(n.id) && !dismissedNotes.has(n.id) && anchorFor(n))
+        .slice(0, maxNotes());
+    }
+
+    const key = notes.map((n) => n.id).join('|');
+    if (key === renderedNotesKey) return;
+    renderedNotesKey = key;
+
+    $demoNotes.innerHTML = '';
+    notes.forEach((n) => {
+      const [howLabel, whyLabel] = n.labels || ['How it works', 'Why it matters'];
+      $demoNotes.append(h('div', {
+        class: 'demo-note', role: 'note', 'aria-label': `Demo note: ${n.title}`,
+        'data-id': n.id, 'data-anchor': n.anchor, 'data-kind': n.kind || 'neutral',
+      },
+      h('div', { class: 'demo-note__head' },
+        h('span', { class: 'demo-note__kicker', text: 'Demo note' }),
+        h('button', {
+          type: 'button', class: 'demo-note__close', 'aria-label': `Hide note: ${n.title}`, text: '×',
+          onclick: () => { dismissedNotes.add(n.id); renderedNotesKey = ''; renderDemoNotes(); },
+        })),
+      h('p', { class: 'demo-note__title', text: n.title }),
+      h('p', { class: 'demo-note__row' }, h('span', { text: howLabel }), n.how),
+      h('p', { class: 'demo-note__row' }, h('span', { text: whyLabel }), n.why),
+      h('span', { class: 'demo-note__caret', 'aria-hidden': 'true' })));
+    });
+    if (notes.length && !notesRaf) notesRaf = requestAnimationFrame(positionDemoNotes);
+  }
+
+  const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+
+  // Runs every frame while notes are showing, so they stay attached through
+  // the surface's own animations (entrance, takeovers, expansion, steps).
+  function positionDemoNotes() {
+    const els = [...$demoNotes.children];
+    if (!els.length) { notesRaf = null; return; }
+    const vw = document.documentElement.clientWidth;
+    const vh = window.innerHeight;
+    const gap = 14;
+    const panelOpen = !$panel.hidden && vw > 720;
+    const minLeft = panelOpen ? $panel.getBoundingClientRect().right + 12 : 12;
+
+    // Things a note must not cover: the sticky surface, the privacy notice,
+    // and the chat window — unless the note is about that very thing.
+    const obstacleEls = [$surface, $privacyBar, $chatWindow].filter((el) => !el.hidden);
+    const placed = [];
+
+    els.forEach((el) => {
+      const target = document.querySelector(el.dataset.anchor);
+      const r = target && target.getBoundingClientRect();
+      if (!r || (!r.width && !r.height)) { el.style.visibility = 'hidden'; return; }
+      el.style.visibility = '';
+      const w = el.offsetWidth;
+      const hgt = el.offsetHeight;
+      const box = (left, top) => ({ left, top, right: left + w, bottom: top + hgt });
+      // The sticky surface is always an obstacle — even for notes about
+      // something inside it, which are placed above it rather than on it.
+      const obstacles = obstacleEls
+        .filter((o) => (o === $surface || !o.contains(target)) && o.getBoundingClientRect().height)
+        .map((o) => o.getBoundingClientRect())
+        .concat(placed);
+      const clampLeft = (x) => Math.min(Math.max(x, minLeft), vw - w - 8);
+      const free = (b) => b.top >= 8 && b.bottom <= vh - 8 && b.left >= minLeft - 0.5 && b.right <= vw - 7.5
+        && !obstacles.some((o) => overlaps(b, o));
+      // A note slid sideways must still sit over its anchor, so its caret can point at it.
+      const overAnchor = (b) => b.left < r.right - 24 && b.right > r.left + 24;
+
+      // Anything inside the sticky surface is referenced from the surface's
+      // top edge, so the note never overlaps the bar it's describing.
+      const inSurface = $surface.contains(target);
+      const refTop = inSurface ? Math.min(r.top, $surface.getBoundingClientRect().top) : r.top;
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+
+      const aboveTop = refTop - hgt - gap;
+      const candidates = [
+        ['top', box(clampLeft(cx - w / 2), aboveTop)],
+        // Beside an earlier note, at the same height, if still over the anchor.
+        ...placed.flatMap((pl) => [
+          ['top', box(pl.right + 12, aboveTop)],
+          ['top', box(pl.left - w - 12, aboveTop)],
+        ]).filter(([, c]) => overAnchor(c)),
+        ...(inSurface ? [] : [
+          ['left', box(r.left - w - gap, cy - hgt / 2)],
+          ['right', box(r.right + gap, cy - hgt / 2)],
+        ]),
+      ];
+      let [placement, b] = candidates.find(([, c]) => free(c)) || [];
+      if (!b) {
+        // Lift above whatever is in the way. The note is no longer next to
+        // its anchor, so it drops the caret rather than point at the wrong thing.
+        placement = 'detached';
+        b = candidates[0][1];
+        for (let i = 0; i < 6; i++) {
+          const hit = obstacles.find((o) => overlaps(b, o));
+          if (!hit) break;
+          b = box(b.left, hit.top - hgt - gap);
+        }
+        b = box(b.left, Math.max(8, Math.min(b.top, vh - hgt - 8)));
+      }
+
+      el.style.left = `${Math.round(b.left)}px`;
+      el.style.top = `${Math.round(b.top)}px`;
+      el.dataset.placement = placement;
+      // Point the caret at the nearest part of the anchor.
+      if (placement === 'top') {
+        const x = Math.min(Math.max(b.left + w / 2, r.left + 12), r.right - 12);
+        el.style.setProperty('--caret', `${Math.min(Math.max(x - b.left, 18), w - 18)}px`);
+      } else {
+        const y = Math.min(Math.max(b.top + hgt / 2, r.top + 10), r.bottom - 10);
+        el.style.setProperty('--caret', `${Math.min(Math.max(y - b.top, 18), hgt - 18)}px`);
+      }
+      placed.push(b);
+    });
+    notesRaf = requestAnimationFrame(positionDemoNotes);
+  }
+
+  window.addEventListener('resize', () => { renderedNotesKey = ''; renderDemoNotes(); });
+
+  $demoNotesToggle.addEventListener('change', () => {
+    dismissedNotes.clear();
+    log('demo_notes', $demoNotesToggle.checked ? 'shown' : 'hidden');
+    renderDemoNotes();
+  });
+  if (embedded) $demoNotes.remove();
+  demoNotesReady = true;
 
   /* ------------------------------------------------------------------ *
    * Init

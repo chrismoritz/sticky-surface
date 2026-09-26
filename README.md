@@ -70,6 +70,21 @@ you pick a preset by hand.
 Each step starts from a clean slate — the rotating messages step 5 turns
 on don't carry into the later steps.
 
+**Demo notes.** Every demo also gets floating tooltips ("Demo note"),
+anchored to the element being demonstrated — the bar, the chat field, the
+privacy notice, the quote form, the chaos widgets — each explaining **how
+it works** and **why it matters** (for the Current State and chaos
+comparison: how it works today, and the problem). They follow live state
+rather than just the preset: in the Intercept Prompts step the note changes
+from "Survey on its way" to "The survey takes over" to "Quote outranks
+Survey" as each moment lands, and opening the quote form, the chat window,
+or the privacy notice brings up a note about that. At most two show at
+once on desktop and one on phones (dismiss one with × to see the next);
+they stay clear of the sticky bar, each other, and the open control panel,
+and track their anchors through every animation. Turn them off with
+**Show demo notes** under the Demo Flow buttons. They're styled as
+prototype chrome and never appear in the device-frame preview.
+
 **Content Presets** are grouped by what they demonstrate — *Baseline*,
 *Compositions*, *Chat & search* (the color-coded utilities), *Intercept
 prompts* (which arrive after the Prompt delay), and *Orchestration & edge

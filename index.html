@@ -254,6 +254,9 @@
         <button data-flow="8" type="button">8. Orchestration</button>
       </div>
       <p class="panel__flow-note" id="flowNote" aria-live="polite" hidden></p>
+      <label class="panel__row panel__notes-toggle">
+        <input type="checkbox" id="demoNotesToggle" checked> Show demo notes <span>floating tooltips explaining each demo</span>
+      </label>
     </section>
 
     <details class="panel__section" open>
@@ -473,6 +476,12 @@
 </aside>
 
 <div id="liveRegion" class="visually-hidden" role="status" aria-live="polite"></div>
+
+<!-- ============================================================
+     DEMO NOTES — floating tooltips explaining each demo (how it works,
+     why it matters). Prototype chrome, positioned by script.js.
+     ============================================================ -->
+<div id="demoNotes" class="demo-notes" aria-label="Demo notes"></div>
 
 <!-- ============================================================
      "UNCOORDINATED CHAOS" COMPARISON
