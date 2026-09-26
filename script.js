@@ -181,7 +181,7 @@
         state.quoteSubmitted = false;
         scheduleQuote();
       },
-      note: 'Simulates a visitor who clicked a CTA on an earlier visit and has just returned to the tab.',
+      note: 'Simulates a visitor who clicked a CTA on an earlier visit and has just returned to the tab. Get My Quote opens the four-step request form: vehicle, your information, dealer, review.',
     },
     {
       id: 'mobile-compact',
@@ -329,6 +329,8 @@
     quoteDismissed: false,
     quoteSubmitted: false,
     promptDelay: 'standard', // how long Survey/Quote wait before arriving
+    quoteDraft: null, // in-progress multi-step quote form (survives closing the panel)
+    vehicleInterest: null, // vehicle the visitor clicked in search results, used to pre-fill the quote
 
     rotationPaused: false,
   };
@@ -595,10 +597,20 @@
     const getQuote = document.createElement('button');
     getQuote.type = 'button';
     getQuote.className = 'btn btn--primary btn--small';
-    getQuote.textContent = 'Get My Quote';
+    getQuote.textContent = quoteCtaLabel();
+    getQuote.setAttribute('aria-controls', 'stickyFlyout');
+    getQuote.setAttribute('aria-expanded', String(state.flyout === 'quote'));
     getQuote.addEventListener('click', () => {
-      log('cta_clicked', 'get_my_quote');
+      const first = $surface.getBoundingClientRect();
+      if (state.flyout === 'quote') {
+        closeFlyout();
+        animateSurfaceResize(first);
+        return;
+      }
+      log('cta_clicked', getQuote.textContent === 'Get My Quote' ? 'get_my_quote' : 'continue_my_quote');
       openFlyout('quote');
+      animateSurfaceResize(first);
+      focusQuoteHeading();
     });
     wrap.appendChild(getQuote);
 
@@ -1114,7 +1126,11 @@
         const b = document.createElement('button');
         b.type = 'button';
         b.textContent = item;
-        b.addEventListener('click', () => log('cta_clicked', `search_result: ${item}`));
+        b.addEventListener('click', () => {
+          log('cta_clicked', `search_result: ${item}`);
+          const interest = vehicleInterestFrom(item);
+          if (interest) state.vehicleInterest = interest;
+        });
         list.appendChild(b);
       });
     }
@@ -1148,58 +1164,439 @@
       renderQuoteForm();
     }
     renderActiveLayer();
+    syncQuoteCta();
   }
 
-  function renderQuoteForm() {
+  /* ------------------------------------------------------------------ *
+   * Request a Quote — multi-step lead form. Mirrors the full production
+   * field set (vehicle, contact + consent, dealer, optional details), but
+   * sequenced so only one short group is on screen at a time, with every
+   * answer the page already knows pre-filled.
+   * ------------------------------------------------------------------ */
+
+  const QUOTE_CATALOG = {
+    2026: {
+      'Aurelia GT': { drivetrains: ['RWD', 'AWD'], trims: { 'Grand Touring': 69595, Performance: 84995, Signature: 92495 } },
+      Meridian: { drivetrains: ['AWD'], trims: { Luxe: 58995, Sport: 64495 } },
+    },
+    2025: {
+      'Aurelia GT': { drivetrains: ['RWD', 'AWD'], trims: { 'Grand Touring': 67995, Performance: 82995 } },
+    },
+  };
+  const AWD_PREMIUM = 3000;
+
+  const DEALERS = [
+    { id: 'sf', name: 'Solstice San Francisco', city: 'San Francisco', state: 'CA', zip: '94103' },
+    { id: 'marin', name: 'Solstice of Marin', city: 'San Rafael', state: 'CA', zip: '94901' },
+    { id: 'bayview', name: 'Bayview Solstice', city: 'Oakland', state: 'CA', zip: '94607' },
+    { id: 'pa', name: 'Solstice Palo Alto', city: 'Palo Alto', state: 'CA', zip: '94301' },
+    { id: 'weho', name: 'Solstice West Hollywood', city: 'Los Angeles', state: 'CA', zip: '90069' },
+    { id: 'bk', name: 'Solstice of Brooklyn', city: 'Brooklyn', state: 'NY', zip: '11201' },
+    { id: 'nyc', name: 'Solstice Manhattan', city: 'New York', state: 'NY', zip: '10013' },
+    { id: 'chi', name: 'Lakeshore Solstice', city: 'Chicago', state: 'IL', zip: '60611' },
+    { id: 'atx', name: 'Solstice Austin', city: 'Austin', state: 'TX', zip: '78701' },
+  ];
+
+  const QUOTE_STEPS = ['Vehicle', 'Your information', 'Dealer', 'Review & send'];
+  const QUOTE_CONFIRM_MS = 2600;
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+  // Small element builder for this form only — keeps the markup readable.
+  // Text always goes in via textContent/append, never innerHTML, since
+  // much of it is visitor-typed.
+  function h(tag, props = {}, ...children) {
+    const node = document.createElement(tag);
+    Object.entries(props).forEach(([key, value]) => {
+      if (value == null || value === false) return;
+      if (key === 'class') node.className = value;
+      else if (key === 'text') node.textContent = value;
+      else if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
+      else if (key in node) node[key] = value;
+      else node.setAttribute(key, value === true ? '' : value);
+    });
+    children.flat().forEach((child) => { if (child != null && child !== false) node.append(child); });
+    return node;
+  }
+
+  // Keeps a vehicle selection valid after an upstream choice changes
+  // (year → model → drivetrain + trim), like the dependent dropdowns on
+  // the production form.
+  function normalizeVehicle(v) {
+    const years = Object.keys(QUOTE_CATALOG).sort().reverse();
+    if (!years.includes(v.year)) v.year = years[0];
+    const models = Object.keys(QUOTE_CATALOG[v.year]);
+    if (!models.includes(v.model)) v.model = models[0];
+    const spec = QUOTE_CATALOG[v.year][v.model];
+    if (!spec.drivetrains.includes(v.drivetrain)) v.drivetrain = spec.drivetrains[spec.drivetrains.length - 1];
+    if (!(v.trim in spec.trims)) v.trim = Object.keys(spec.trims)[0];
+    return v;
+  }
+
+  function vehiclePrice(v) {
+    const spec = QUOTE_CATALOG[v.year][v.model];
+    return spec.trims[v.trim] + (v.drivetrain === 'AWD' && spec.drivetrains.includes('RWD') ? AWD_PREMIUM : 0);
+  }
+
+  function vehicleLabel(v) { return `${v.year} ${v.model} ${v.trim}`; }
+
+  // "2026 Aurelia GT — Performance, AWD" → { year, model, trim, drivetrain }
+  function vehicleInterestFrom(text) {
+    const year = (text.match(/^(\d{4})/) || [])[1];
+    if (!year || !QUOTE_CATALOG[year]) return null;
+    const model = Object.keys(QUOTE_CATALOG[year]).find((m) => text.includes(m));
+    if (!model) return null;
+    const interest = { year, model };
+    const drivetrain = (text.match(/\b(RWD|AWD)\b/) || [])[1];
+    if (drivetrain) interest.drivetrain = drivetrain;
+    const trim = Object.keys(QUOTE_CATALOG[year][model].trims).find((t) => text.includes(t));
+    if (trim) interest.trim = trim;
+    return interest;
+  }
+
+  function newQuoteDraft() {
+    const pageVehicle = { year: '2026', model: 'Aurelia GT', drivetrain: 'AWD', trim: 'Grand Touring' };
+    return {
+      step: 0,
+      vehicleSource: state.vehicleInterest ? 'search' : 'page',
+      vehicle: normalizeVehicle({ ...pageVehicle, ...(state.vehicleInterest || {}) }),
+      contact: { first: '', last: '', email: '', phone: '', zip: '', pref: 'email' },
+      dealerQuery: '', // the search that produced the current list
+      dealerInput: '', // what's typed in the search box right now
+      dealerSeedZip: '',
+      dealerId: null,
+      optional: { open: false, down: '', trade: '', accessories: false, eligibility: 'none', notes: '' },
+      errors: {},
+    };
+  }
+
+  // Rough but plausible: same 3-digit ZIP prefix is local, same first
+  // digit is regional, anything else is far away.
+  function dealerMiles(zip, dealer) {
+    if (!/^\d{5}$/.test(zip)) return null;
+    const diff = Math.abs(Number(zip) - Number(dealer.zip));
+    if (zip.slice(0, 3) === dealer.zip.slice(0, 3)) return 2 + (diff % 11);
+    if (zip[0] === dealer.zip[0]) return 18 + (diff % 47);
+    return 400 + (diff % 2100);
+  }
+
+  // City/State, ZIP, or dealer name — the same three ways the production
+  // search accepts.
+  function findDealers(query) {
+    const d = state.quoteDraft;
+    const q = query.trim();
+    const origin = /^\d{5}$/.test(q) ? q : d.contact.zip.trim();
+    const needle = /^\d{5}$/.test(q) ? '' : q.toLowerCase();
+    return DEALERS
+      .filter((dealer) => !needle || `${dealer.name} ${dealer.city}, ${dealer.state} ${dealer.zip}`.toLowerCase().includes(needle))
+      .map((dealer) => ({ ...dealer, miles: dealerMiles(origin, dealer) }))
+      .sort((a, b) => (a.miles ?? 0) - (b.miles ?? 0))
+      .slice(0, needle ? 5 : 3);
+  }
+
+  function selectedDealer() {
+    const d = state.quoteDraft;
+    return d && DEALERS.find((dealer) => dealer.id === d.dealerId);
+  }
+
+  function validateQuoteStep(step) {
+    const d = state.quoteDraft;
+    const c = d.contact;
+    const errors = {};
+    if (step === 1) {
+      if (!c.first.trim()) errors.first = 'Enter your first name.';
+      if (!c.last.trim()) errors.last = 'Enter your last name.';
+      if (!EMAIL_RE.test(c.email.trim())) errors.email = 'Enter a valid email address, like name@example.com.';
+      const digits = c.phone.replace(/\D/g, '');
+      if (c.pref === 'phone' && !digits) errors.phone = 'Add a phone number, or choose email as your contact preference.';
+      else if (digits && digits.length !== 10) errors.phone = 'Enter a 10-digit phone number.';
+      if (!/^\d{5}$/.test(c.zip.trim())) errors.zip = 'Enter a 5-digit ZIP code.';
+    }
+    if (step === 2 && !selectedDealer()) errors.dealer = 'Choose a dealer to send your request to.';
+    d.errors = errors;
+    return Object.keys(errors).length === 0;
+  }
+
+  function goToQuoteStep(target) {
+    const d = state.quoteDraft;
+    if (target > d.step && !validateQuoteStep(d.step)) {
+      log('quote_validation', `missing/invalid: ${Object.keys(d.errors).join(', ')}`);
+      renderQuoteForm({ animate: true, focus: 'error' });
+      return;
+    }
+    d.errors = {};
+    const direction = target > d.step ? 'forward' : 'back';
+    if (target === 2) seedDealerSearch();
+    d.step = target;
+    log('quote_step', `${target + 1}. ${QUOTE_STEPS[target]}`);
+    renderQuoteForm({ animate: true, focus: 'heading', direction });
+  }
+
+  // The dealer step follows the ZIP from the previous step — unless the
+  // visitor has since searched for something else themselves.
+  function seedDealerSearch() {
+    const d = state.quoteDraft;
+    const zip = d.contact.zip.trim();
+    if (!d.dealerQuery || d.dealerQuery === d.dealerSeedZip) {
+      d.dealerQuery = zip;
+      d.dealerInput = zip;
+      d.dealerSeedZip = zip;
+    }
+  }
+
+  function sendQuote() {
+    const d = state.quoteDraft;
+    for (const step of [1, 2]) {
+      if (!validateQuoteStep(step)) { d.step = step; renderQuoteForm({ animate: true, focus: 'error' }); return; }
+    }
+    submitQuote();
+  }
+
+  // A visitor who got partway through before closing the panel picks up
+  // where they left off.
+  function quoteCtaLabel() {
+    return state.quoteDraft && state.quoteDraft.step > 0 ? 'Continue My Quote' : 'Get My Quote';
+  }
+
+  // The prompt's button is rendered once per takeover, so keep its label and
+  // expanded state in step with the panel as it opens and closes.
+  function syncQuoteCta() {
+    const btn = $primary.querySelector('.primary-prompt--quote .btn--primary');
+    if (!btn) return;
+    btn.setAttribute('aria-expanded', String(state.flyout === 'quote'));
+    if (state.flyout !== 'quote') btn.textContent = quoteCtaLabel();
+  }
+
+  function focusQuoteHeading() {
+    document.getElementById('quoteStepHeading')?.focus({ preventScroll: true });
+  }
+
+  function renderQuoteForm(opts = {}) {
+    const first = opts.animate ? $surface.getBoundingClientRect() : null;
     $flyout.innerHTML = '';
 
     if (state.quoteSubmitted) {
-      const title = document.createElement('p');
-      title.className = 'flyout-title';
-      title.textContent = 'Request received';
-      $flyout.appendChild(title);
-      const msg = document.createElement('p');
-      msg.className = 'flyout-empty';
-      msg.textContent = 'Thanks — a product specialist will follow up shortly.';
-      $flyout.appendChild(msg);
+      $flyout.append(renderQuoteConfirmation());
+      animateSurfaceResize(first);
       return;
     }
 
-    const title = document.createElement('p');
-    title.className = 'flyout-title';
-    title.textContent = 'Request a Quote';
-    $flyout.appendChild(title);
+    if (!state.quoteDraft) state.quoteDraft = newQuoteDraft();
+    const d = state.quoteDraft;
 
-    const form = document.createElement('form');
-    form.className = 'quote-form';
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      submitQuote();
-    });
+    const bodies = [renderQuoteVehicleStep, renderQuoteContactStep, renderQuoteDealerStep, renderQuoteReviewStep];
+    const isLast = d.step === QUOTE_STEPS.length - 1;
+    const form = h('form', {
+      class: `quote-step${opts.direction ? ` is-entering-${opts.direction}` : ''}`,
+      noValidate: true,
+      onsubmit: (e) => {
+        e.preventDefault();
+        if (isLast) sendQuote(); else goToQuoteStep(d.step + 1);
+      },
+    },
+    bodies[d.step](),
+    h('div', { class: 'quote-nav' },
+      d.step > 0 ? h('button', { type: 'button', class: 'quote-link', text: 'Back', onclick: () => goToQuoteStep(d.step - 1) }) : h('span'),
+      h('button', { type: 'submit', class: 'btn btn--primary btn--small', text: isLast ? 'Send request' : 'Continue' })));
 
-    [
-      { id: 'quoteName', label: 'Name', type: 'text' },
-      { id: 'quoteEmail', label: 'Email', type: 'email' },
-      { id: 'quoteZip', label: 'ZIP code', type: 'text' },
-    ].forEach((f) => {
-      const field = document.createElement('label');
-      field.className = 'quote-form__field';
-      field.textContent = f.label;
-      const input = document.createElement('input');
-      input.type = f.type;
-      input.id = f.id;
-      input.required = true;
-      field.appendChild(input);
-      form.appendChild(field);
-    });
+    $flyout.append(h('div', { class: 'quote-flow' },
+      h('p', { class: 'flyout-title', text: 'Request a Quote' }),
+      h('ol', { class: 'quote-progress', 'aria-label': 'Progress' },
+        QUOTE_STEPS.map((name, i) => h('li', {
+          class: i < d.step ? 'is-done' : i === d.step ? 'is-current' : '',
+          'aria-current': i === d.step ? 'step' : null,
+          text: name,
+        }))),
+      h('h3', { class: 'quote-step-title', id: 'quoteStepHeading', tabIndex: -1, text: `Step ${d.step + 1} of ${QUOTE_STEPS.length} · ${QUOTE_STEPS[d.step]}` }),
+      form));
 
-    const submit = document.createElement('button');
-    submit.type = 'submit';
-    submit.className = 'btn btn--primary btn--small';
-    submit.textContent = 'Submit';
-    form.appendChild(submit);
+    $flyout.scrollTop = 0;
+    animateSurfaceResize(first);
+    if (opts.focus === 'heading') focusQuoteHeading();
+    if (opts.focus === 'error') $flyout.querySelector('[aria-invalid="true"], .qf-error')?.focus?.({ preventScroll: false });
+  }
 
-    $flyout.appendChild(form);
+  function quoteField(key, label, { type = 'text', required, autocomplete, inputMode, placeholder, hint } = {}) {
+    const d = state.quoteDraft;
+    const id = `quote${key[0].toUpperCase()}${key.slice(1)}`;
+    const err = d.errors[key];
+    const describedBy = [err && `${id}-err`, hint && `${id}-hint`].filter(Boolean).join(' ') || null;
+    return h('div', { class: `qf${err ? ' is-invalid' : ''}` },
+      h('label', { htmlFor: id }, label, required
+        ? h('span', { class: 'qf-req', 'aria-hidden': 'true', text: ' *' })
+        : h('span', { class: 'qf-opt', text: ' (optional)' })),
+      h('input', {
+        id, type, value: d.contact[key], autocomplete, inputMode, placeholder, required: !!required,
+        'aria-invalid': err ? 'true' : null,
+        'aria-describedby': describedBy,
+        oninput: (e) => {
+          d.contact[key] = e.target.value;
+          // Clear the error as soon as they start fixing it, without a re-render.
+          if (d.errors[key]) {
+            delete d.errors[key];
+            e.target.removeAttribute('aria-invalid');
+            e.target.closest('.qf').classList.remove('is-invalid');
+            document.getElementById(`${id}-err`)?.remove();
+          }
+        },
+      }),
+      hint ? h('span', { class: 'qf-hint', id: `${id}-hint`, text: hint }) : null,
+      err ? h('span', { class: 'qf-error', id: `${id}-err`, text: err }) : null);
+  }
+
+  function quoteSelect(key, label, options) {
+    const v = state.quoteDraft.vehicle;
+    const id = `quote${key[0].toUpperCase()}${key.slice(1)}`;
+    return h('div', { class: 'qf' },
+      h('label', { htmlFor: id, text: label }),
+      h('select', {
+        id,
+        onchange: (e) => {
+          v[key] = e.target.value;
+          normalizeVehicle(v);
+          renderQuoteForm();
+          document.getElementById(id)?.focus();
+        },
+      }, options.map((o) => h('option', { value: o, text: o, selected: o === v[key] }))));
+  }
+
+  function quoteChoices(name, legend, options, current, onChange) {
+    return h('fieldset', { class: 'qf-choice' },
+      h('legend', { text: legend }),
+      options.map(([value, text]) => h('label', {},
+        h('input', { type: 'radio', name: `quote-${name}`, value, checked: value === current, onchange: () => onChange(value) }),
+        text)));
+  }
+
+  function renderQuoteVehicleStep() {
+    const d = state.quoteDraft;
+    const v = d.vehicle;
+    const spec = QUOTE_CATALOG[v.year][v.model];
+    return h('div', {},
+      h('p', { class: 'quote-hint', text: d.vehicleSource === 'search'
+        ? 'Pre-selected from the vehicle you picked in search. Change anything below.'
+        : "Pre-selected from the vehicle you're viewing. Change anything below." }),
+      h('div', { class: 'quote-grid' },
+        quoteSelect('year', 'Model year', Object.keys(QUOTE_CATALOG).sort().reverse()),
+        quoteSelect('model', 'Model', Object.keys(QUOTE_CATALOG[v.year])),
+        quoteSelect('drivetrain', 'Drivetrain', spec.drivetrains),
+        quoteSelect('trim', 'Trim', Object.keys(spec.trims))),
+      h('div', { class: 'quote-vehicle', 'aria-live': 'polite' },
+        h('div', { class: `quote-vehicle__thumb ${v.model === 'Meridian' ? 'gradient-d' : 'gradient-a'}`, role: 'img', 'aria-label': `${v.model} (illustrative)` }),
+        h('div', {},
+          h('strong', { text: `${vehicleLabel(v)} · ${v.drivetrain}` }),
+          h('span', { class: 'quote-vehicle__price', text: `Starting MSRP ${usd.format(vehiclePrice(v))}†` }),
+          h('small', { text: 'Your selected dealer will provide you with their best selling price on this vehicle.' }),
+          h('small', { text: 'Image may not reflect exact vehicle or options selected.' }))));
+  }
+
+  function renderQuoteContactStep() {
+    const d = state.quoteDraft;
+    const c = d.contact;
+    const phoneRequired = c.pref === 'phone';
+    return h('div', {},
+      h('p', { class: 'quote-legal' },
+        'By providing my contact information below, I consent that Solstice Motors and/or a Solstice dealer can contact me with offers and product information. ',
+        h('a', { href: '#privacy', text: 'Privacy Statement' })),
+      h('div', { class: 'quote-grid' },
+        quoteField('first', 'First name', { required: true, autocomplete: 'given-name' }),
+        quoteField('last', 'Last name', { required: true, autocomplete: 'family-name' }),
+        quoteField('email', 'Email', { type: 'email', required: true, autocomplete: 'email', inputMode: 'email' }),
+        quoteField('phone', 'Phone', { type: 'tel', required: phoneRequired, autocomplete: 'tel', inputMode: 'tel' }),
+        quoteField('zip', 'ZIP code', { required: true, autocomplete: 'postal-code', inputMode: 'numeric', hint: 'Used to find your nearest dealers next.' })),
+      quoteChoices('pref', 'Contact preference', [['email', 'Email'], ['phone', 'Telephone']], c.pref, (value) => {
+        c.pref = value;
+        if (value === 'email' && d.errors.phone && !c.phone.trim()) delete d.errors.phone;
+        renderQuoteForm();
+        $flyout.querySelector(`input[name="quote-pref"][value="${value}"]`)?.focus();
+      }));
+  }
+
+  function renderQuoteDealerStep() {
+    const d = state.quoteDraft;
+    const results = findDealers(d.dealerQuery);
+    // Keep the visitor's pick if it's still listed; otherwise default to the nearest.
+    if (!results.some((r) => r.id === d.dealerId)) d.dealerId = results.length ? results[0].id : null;
+    const runSearch = () => {
+      d.dealerQuery = d.dealerInput.trim();
+      log('quote_dealer_search', d.dealerQuery || '(nearest)');
+      renderQuoteForm({ animate: true });
+      document.getElementById('quoteDealerSearch')?.focus();
+    };
+    const zipLabel = /^\d{5}$/.test(d.dealerQuery) ? d.dealerQuery : d.contact.zip;
+    return h('div', {},
+      h('p', { class: 'quote-hint', text: /^\d{5}$/.test(d.dealerQuery) || !d.dealerQuery
+        ? `Nearest dealers to ${zipLabel}. The closest is selected for you.`
+        : `Dealers matching “${d.dealerQuery}”.` }),
+      h('div', { class: 'quote-dealer-search' },
+        h('label', { htmlFor: 'quoteDealerSearch', class: 'visually-hidden', text: 'Search dealers by city and state, ZIP code, or dealer name' }),
+        h('input', {
+          id: 'quoteDealerSearch', type: 'search', value: d.dealerInput, placeholder: 'City/State, ZIP code, or dealer name',
+          oninput: (e) => { d.dealerInput = e.target.value; },
+          // Enter searches here instead of submitting the step.
+          onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); runSearch(); } },
+        }),
+        h('button', { type: 'button', class: 'btn btn--small quote-secondary', text: 'Update', onclick: runSearch })),
+      results.length
+        ? h('div', { class: 'quote-dealers', role: 'radiogroup', 'aria-label': 'Dealers' },
+          results.map((dealer) => h('label', { class: 'quote-dealer' },
+            h('input', { type: 'radio', name: 'quote-dealer', value: dealer.id, checked: dealer.id === d.dealerId, onchange: () => { d.dealerId = dealer.id; } }),
+            h('span', {},
+              h('span', { class: 'quote-dealer__name', text: dealer.name }),
+              h('span', { class: 'quote-dealer__meta', text: `${dealer.city}, ${dealer.state} ${dealer.zip}` })),
+            dealer.miles != null ? h('span', { class: 'quote-dealer__miles', text: `${dealer.miles} mi` }) : null)))
+        : h('p', { class: 'quote-empty', text: `No dealers match “${d.dealerQuery}”. Try a city, state, or ZIP code.` }),
+      d.errors.dealer ? h('p', { class: 'qf-error', tabIndex: -1, text: d.errors.dealer }) : null);
+  }
+
+  function renderQuoteReviewStep() {
+    const d = state.quoteDraft;
+    const c = d.contact;
+    const o = d.optional;
+    const dealer = selectedDealer();
+    const row = (term, detail, step) => h('div', { class: 'quote-review__row' },
+      h('div', {}, h('dt', { text: term }), h('dd', { text: detail })),
+      h('button', { type: 'button', class: 'quote-link', text: 'Edit', 'aria-label': `Edit ${term.toLowerCase()}`, onclick: () => goToQuoteStep(step) }));
+    const contactBy = c.pref === 'phone' ? `prefers a call at ${c.phone}` : 'prefers email';
+    const optionalId = 'quoteOptional';
+    return h('div', {},
+      h('dl', { class: 'quote-review' },
+        row('Vehicle', `${vehicleLabel(d.vehicle)} · ${d.vehicle.drivetrain} · from ${usd.format(vehiclePrice(d.vehicle))}`, 0),
+        row('You', `${c.first} ${c.last} · ${c.email} · ${contactBy}`, 1),
+        row('Dealer', dealer ? `${dealer.name}, ${dealer.city}` : '—', 2)),
+      h('button', {
+        type: 'button', class: 'quote-optional-toggle', 'aria-expanded': String(o.open), 'aria-controls': optionalId,
+        onclick: () => {
+          o.open = !o.open;
+          renderQuoteForm({ animate: true });
+          $flyout.querySelector('.quote-optional-toggle')?.focus();
+        },
+      }, h('strong', { text: `${o.open ? '−' : '+'} Optional details` }), h('span', { text: 'Down payment, trade-in, eligibility, notes' })),
+      h('div', { class: 'quote-optional', id: optionalId, hidden: !o.open },
+        h('div', { class: 'quote-grid' },
+          h('div', { class: 'qf' },
+            h('label', { htmlFor: 'quoteDown', text: 'Down payment ($)' }),
+            h('input', { id: 'quoteDown', type: 'text', inputMode: 'numeric', value: o.down, placeholder: 'e.g. 10,000', oninput: (e) => { o.down = e.target.value; } })),
+          h('div', { class: 'qf' },
+            h('label', { htmlFor: 'quoteTrade', text: 'Trade-in vehicle' }),
+            h('input', { id: 'quoteTrade', type: 'text', value: o.trade, placeholder: 'Year, make, model', oninput: (e) => { o.trade = e.target.value; } }))),
+        h('label', { class: 'qf-check' },
+          h('input', { type: 'checkbox', checked: o.accessories, onchange: (e) => { o.accessories = e.target.checked; } }),
+          "I'm interested in Solstice accessories"),
+        quoteChoices('eligibility', "I'm eligible for", [['employee', 'Solstice employee pricing'], ['supplier', 'Solstice supplier pricing'], ['none', 'Neither']], o.eligibility, (value) => { o.eligibility = value; }),
+        h('div', { class: 'qf qf--notes' },
+          h('label', { htmlFor: 'quoteNotes', text: 'Additional details for your dealer' }),
+          h('textarea', { id: 'quoteNotes', value: o.notes, oninput: (e) => { o.notes = e.target.value; } }))));
+  }
+
+  function renderQuoteConfirmation() {
+    const d = state.quoteDraft;
+    const dealer = selectedDealer();
+    const how = d.contact.pref === 'phone' ? `by phone at ${d.contact.phone}` : `by email at ${d.contact.email}`;
+    return h('div', { class: 'quote-flow quote-done', role: 'status' },
+      h('p', { class: 'flyout-title', text: 'Request sent' }),
+      h('p', { class: 'quote-done__msg',
+        text: `${dealer ? dealer.name : 'Your dealer'} will contact you ${how} with their best price on the ${vehicleLabel(d.vehicle)}.` }));
   }
 
   function closeFlyout() {
@@ -1208,6 +1605,7 @@
     $flyout.innerHTML = '';
     delete $flyout.dataset.kind;
     renderActiveLayer();
+    syncQuoteCta();
   }
 
   /* ------------------------------------------------------------------ *
@@ -1456,25 +1854,28 @@
     $surface.style.transitionProperty = 'background-color';
     if (full) fullRender(); else renderPrimary();
     settleExpansionNow();
-    const last = $surface.getBoundingClientRect();
-    $surface.style.transitionProperty = '';
-
     $primary.classList.remove('is-swapping-out');
     if (!prefersReducedMotion && wasVisible) {
       void $primary.offsetWidth;
       $primary.classList.add('is-swapping-in');
       swapCleanupTimer = setTimeout(() => $primary.classList.remove('is-swapping-in'), 1000);
-      const sizeChanged = Math.abs(first.width - last.width) > 1 || Math.abs(first.height - last.height) > 1;
       // Skip when minimize/restore is changing at the same time — that
       // sequence already animates the surface's height on its own.
-      if (first.width && sizeChanged && wasMinimized === $sticky.dataset.minimized) {
-        $surface.animate(
-          [{ width: `${first.width}px`, height: `${first.height}px` }, { width: `${last.width}px`, height: `${last.height}px` }],
-          { duration: getDurMedMs(), easing: 'cubic-bezier(.2,.7,.2,1)' },
-        );
-      }
+      if (wasMinimized === $sticky.dataset.minimized) animateSurfaceResize(first);
     }
+    $surface.style.transitionProperty = '';
     if (!full) evaluateCrowding();
+  }
+
+  // Animates the surface from a previously measured size to its current one.
+  function animateSurfaceResize(first) {
+    if (prefersReducedMotion || !first || !first.width) return;
+    const last = $surface.getBoundingClientRect();
+    if (Math.abs(first.width - last.width) <= 1 && Math.abs(first.height - last.height) <= 1) return;
+    $surface.animate(
+      [{ width: `${first.width}px`, height: `${first.height}px` }, { width: `${last.width}px`, height: `${last.height}px` }],
+      { duration: getDurMedMs(), easing: 'cubic-bezier(.2,.7,.2,1)' },
+    );
   }
 
   function cancelSwap() {
@@ -1577,18 +1978,22 @@
   // briefly (like the chat window's mock reply) instead of snapping straight
   // back to whatever was showing before, so the confirmation is actually legible.
   function submitQuote() {
+    const d = state.quoteDraft;
     state.quoteSubmitted = true;
     log('cta_clicked', 'quote_submit (mock)');
-    renderQuoteForm();
+    log('quote_submitted', `${vehicleLabel(d.vehicle)} ${d.vehicle.drivetrain} → ${selectedDealer()?.name || 'no dealer'}`
+      + `${d.optional.trade ? ' · trade-in' : ''}${d.optional.down ? ' · down payment' : ''}`);
+    renderQuoteForm({ animate: true });
     setTimeout(() => {
       if (!state.quoteActive) return;
+      state.quoteDraft = null;
       state.quoteActive = false;
       closeFlyout();
       restoreCompositionIfIdle();
       swapPrimary(true);
       renderActiveLayer();
       maybeReleasePendingOverlays();
-    }, 1400);
+    }, QUOTE_CONFIRM_MS);
   }
 
   // Returning to the tab after a qualifying action is what a real site
@@ -1736,6 +2141,7 @@
       legacyMode: false,
       surveyActive: false,
       quoteActive: false,
+      quoteDraft: null,
       priorComposition: null,
       minimized: false,
       dismissed: false,
@@ -1932,7 +2338,7 @@
     4: 'Same content, different shell — try Full-width / Floating / Compact and the surface finishes.',
     5: 'Scroll the page: the CTA follows each section and cross-fades as it changes; messages rotate.',
     6: 'Each utility has its own color. Focus the chat field (blue) or open Search (teal) and the whole surface tints to match. Esc or clicking away closes things.',
-    7: 'Watch the readout at the top count down. The Survey arrives after the Prompt delay, then the returning-visitor Quote animates over it. Dismiss the Quote and the Survey comes back.',
+    7: 'Watch the readout at the top count down. The Survey arrives after the Prompt delay, then the returning-visitor Quote animates over it — click Get My Quote to walk the four-step form. Dismiss the Quote and the Survey comes back.',
     8: 'Privacy shows first and wins; the Survey and Quote are scheduled behind it. Accept the notice and the Quote follows after a short beat, then the Survey after that.',
   };
   const $flowNote = document.getElementById('flowNote');

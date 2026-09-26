@@ -58,8 +58,9 @@ you pick a preset by hand.
    whole surface tints to match; Esc or clicking away closes things.
 7. **Intercept Prompts** — the Survey → Quote Handoff preset. The readout
    counts down; the Survey arrives after the Prompt delay, then the
-   returning-visitor Quote animates over it. Dismiss the Quote and the
-   Survey comes back after a short beat.
+   returning-visitor Quote animates over it. Click **Get My Quote** to walk
+   the four-step request form. Dismiss the Quote and the Survey comes back
+   after a short beat.
 8. **Orchestration** — shows the privacy notice immediately and schedules
    a Survey and a Quote prompt behind it. When they land, privacy still wins
    and they wait ("…_triggered — waiting"). Accept the notice and the Quote
@@ -285,12 +286,12 @@ mechanism as Survey: if a visitor does something that signals real intent —
 clicks a CTA, opens Chat or Search, or scrolls into the Shopping section —
 and then leaves the tab and comes back, the sticky surface greets them with
 "Welcome back. Ready for pricing on the Aurelia GT?" and a **Get My Quote**
-button instead of whatever was showing before. Clicking it opens a small
-Name/Email/ZIP form in the same flyout panel that already hosts suggested
-chat prompts and search results, so there's no new UI surface to build —
-just a new occupant for the existing one. Submitting shows a mock
-confirmation; dismissing with the × restores whatever composition was
-showing beforehand, same as Survey.
+button instead of whatever was showing before. Clicking it opens the
+multi-step request form (see "The full quote form, as four short steps"
+below) in the same flyout panel that already hosts suggested chat prompts
+and search results, so there's no new UI surface to build — just a new
+occupant for the existing one. Dismissing with the × restores whatever
+composition was showing beforehand, same as Survey.
 
 "Returning to the tab" is detected with the Page Visibility API
 (`visibilitychange` firing while the document is no longer hidden) —
@@ -313,6 +314,50 @@ Both layers now share one snapshot-and-restore mechanism
 (`captureCompositionIfNeeded` / `restoreCompositionIfIdle`) rather than each
 keeping its own copy of "what was there before," so whichever one releases
 last is the one that puts the original content back.
+
+## The full quote form, as four short steps
+
+The production Request Dealer Pricing form asks for a lot: model year,
+model, drivetrain, and trim; first/last name, ZIP, phone, email, and a
+contact preference (with a consent statement); a down payment, trade-in,
+accessories interest, and employee/supplier eligibility; a dealer search by
+City/State, ZIP, or dealer name; and free-form notes. The quote panel now
+carries every one of those fields (re-skinned for the fictional Solstice
+brand), but sequenced so only one short group is on screen at a time and
+anything the page already knows is answered for you:
+
+1. **Vehicle** — year → model → drivetrain + trim are dependent dropdowns
+   (the fictional lineup includes a 2026 *Meridian* SUV so the dependency
+   actually does something), with a live "Starting MSRP" summary. It's
+   pre-filled with the Aurelia GT the visitor is viewing — or, if they
+   clicked a car in search results earlier (e.g. "2026 Aurelia GT —
+   Performance, AWD"), that exact configuration — so most visitors just
+   press Continue.
+2. **Your information** — name, email, phone, ZIP, and contact preference,
+   with the consent statement above them. Choosing *Telephone* makes phone
+   required. Errors appear inline on Continue, the first problem field is
+   focused, and each error clears as soon as it's fixed.
+3. **Dealer** — searched automatically from the ZIP entered in step 2, with
+   the nearest dealer preselected. The City/State / ZIP / dealer-name search
+   is there to change it (Enter searches rather than submitting the step).
+   If the ZIP changes later, the dealer list follows it — unless the
+   visitor searched for something else themselves.
+4. **Review & send** — a summary of the three answers, each with an Edit
+   link back to its step. Down payment, trade-in, accessories, eligibility,
+   and the notes box live behind one collapsed *Optional details*
+   disclosure, so the required path is three quick steps plus a check.
+
+Other details: a progress bar and "Step 2 of 4" heading (focus moves to it
+on each step, for screen reader and keyboard users); Back/Continue stay
+pinned to the bottom of the panel while a long step scrolls; the panel
+animates its height between steps; progress survives closing the panel
+(the prompt's button then reads *Continue My Quote*) and is cleared once
+the request is sent or a new preset is applied. Sending shows who will
+contact the visitor, how, and about which car — "Bayview Solstice will
+contact you by phone at … with their best price on the 2025 Aurelia GT
+Grand Touring" — and the event log records the vehicle, dealer, and which
+optional details were filled in. Dealers, prices, and distances are mock
+data; there's no backend.
 
 ## Sequencing: prompts arrive after a delay, takeovers animate
 
