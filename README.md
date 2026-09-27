@@ -1,5 +1,10 @@
 # Sticky Surface — Aurelia GT Prototype
 
+**View it live: [chrismoritz.github.io/sticky-surface](https://chrismoritz.github.io/sticky-surface/)**
+— the live site is published from this repo's `main` branch, so it always
+shows the latest version. Open **Prototype Controls** (top-left) and click
+through the **Demo Flow** to see the pitch.
+
 A standalone, CodePen-style front-end concept demo for evolving the OEM's
 basic sticky footer into one reusable, reconfigurable **persistent surface**
 component — the kind of shared space where a CTA, Chat, Search, and other
@@ -10,9 +15,87 @@ The background page is a fictional luxury EV ("Aurelia GT" by "Solstice
 Motors") used only to give the sticky component something real to sit on
 top of and scroll against.
 
-## How to run it
+**Contents**
 
-No build step, no dependencies. Any of these work:
+- [Why this exists](#why-this-exists) — the problem at the bottom of the screen
+- [The strategy](#the-strategy) — one shared surface, with rules
+- [Try it](#try-it) — live site, or run it locally
+- [Demoing it live](#demoing-it-live) — the eight-step Demo Flow, presets, presenter tools
+- [Tactical decisions](#tactical-decisions) — how the strategy became specific design and engineering choices
+- [Roadmap: V1, V2, V3](#roadmap-v1-v2-v3) — what's proposed now vs. later
+- [Measuring success](#measuring-success) — proposed pilot metrics
+- [How the prototype is built](#how-the-prototype-is-built) — build choices and why
+- [Feature notes](#feature-notes) — detail on each behavior
+- [Open questions and caveats](#open-questions-and-caveats) — calls worth flagging to stakeholders
+- [Accessibility](#accessibility)
+
+## Why this exists
+
+Every OEM product page ends up with the same problem at the bottom of the
+screen. Over time, separate teams and vendors each claim a piece of it:
+
+- marketing's promo footer ("Explore current offers"),
+- the chat vendor's floating bubble,
+- the survey vendor's intercept,
+- the consent manager's cookie banner,
+- lead generation's "Request a Quote" prompt.
+
+Each one ships independently, positioned on its own with its own stacking
+order. Nobody owns the space, so nothing decides what shows when. The
+results are predictable: widgets overlap each other — worst on phones, where
+the bottom edge is also the thumb zone; the page's own content gets covered;
+a visitor in the middle of a chat gets interrupted by a survey; the brand
+shows up five different ways in one corner of the screen; and every new need
+means one more widget and one more negotiation between teams. The
+prototype's **Show Uncoordinated Chaos** demo shows exactly this.
+
+The brief was to evolve the basic sticky footer. The opportunity is bigger:
+treat that strip of screen as shared, governed real estate.
+
+## The strategy
+
+**Replace a collection of widgets with one persistent surface that
+everything shares — and give it rules.**
+
+1. **One surface, many occupants.** A single component owns the bottom
+   edge. CTAs, chat, search, surveys, quote prompts, and section navigation
+   are *content* it hosts, configured per page — not separate products
+   competing for position. Every preset in the prototype is the same
+   component with different configuration; nothing is rebuilt per scenario,
+   which makes the reusability claim concrete rather than theoretical.
+2. **Arbitrate, don't stack.** When two things want the space, a priority
+   model decides: required UI (the privacy notice) › an active interaction
+   (chat or search in use) › a requested utility (an open panel) › lead
+   capture (Quote) › survey › contextual content › primary content.
+   Lower-priority items wait their turn instead of overlapping. The panel's
+   **Active layer** readout shows the decision as it happens.
+3. **Never interrupt intent.** A visitor mid-chat or mid-search doesn't get
+   a survey. Prompts are scheduled rather than fired on page load; a prompt
+   that was held back arrives a beat after its blocker clears, not in the
+   same instant; and the quote form ignores stray clicks outside it, so
+   typed details aren't lost.
+4. **Earn the space.** Something visible on every screen costs attention
+   on every screen, so it has to stay relevant: the CTA follows the section
+   in view, the quote prompt targets returning visitors who already showed
+   intent, the surface sizes itself to its content, and visitors can
+   minimize or dismiss it where the business allows.
+5. **Match the tone to the placement.** Brand storytelling gets a text
+   link; commerce gets a button. A full-width bar, floating panel, or
+   compact pill are presentations of the same component, chosen per page
+   rather than rebuilt.
+6. **Adopt incrementally.** V1 replaces today's footer one-for-one and
+   coordinates chat; V2 adds the smarter behaviors; V3 is explicitly
+   exploratory. Each step ships value on its own, without a re-platform.
+
+The prototype exists to make that argument tangible: something
+stakeholders can click through, rather than a spec they have to imagine.
+
+## Try it
+
+The quickest way is the live site: **https://chrismoritz.github.io/sticky-surface/**,
+published from the `main` branch.
+
+To run it yourself — no build step, no dependencies — any of these work:
 
 1. **Just open it.** Double-click `index.html`, or drag it into a browser tab.
 2. **Local static server** (recommended, avoids any `file://` quirks):
@@ -29,7 +112,7 @@ Everything lives in three files:
 
 - `index.html` — the fake product page + the one sticky component + the control panel markup
 - `styles.css` — all visual states (presentation, surface, entrance, responsive breakpoints)
-- `script.js` — state, rendering, scroll/orchestration logic, event log
+- `script.js` — state, rendering, orchestration and sequencing, the multi-step quote form, demo notes, event log
 
 ## Demoing it live
 
@@ -97,7 +180,7 @@ The control panel itself is intentionally styled like a dev tool (dark,
 monospace, labeled "PROTOTYPE TOOL — NOT PART OF THE SITE") so it's never
 mistaken for customer-facing UI.
 
-## Presenter tools (panel → "Presenter Tools")
+### Presenter tools (panel → "Presenter Tools")
 
 These exist to make the demo itself easier to run — they aren't part of the
 proposed component, which is why they're tagged "Prototype tool" rather
@@ -114,11 +197,244 @@ than V1/V2/V3:
   of the dev panel so it reads as a clean customer view. It mirrors whatever
   configuration is currently active in the main window.
 
-## Text links vs. buttons, and the "Active layer" readout
+## Tactical decisions
+
+How the strategy turns into specific design and engineering choices, and
+why each one was made. The [Feature notes](#feature-notes) have the detail.
+
+### Composition and layout
+
+- **A centered cluster, not a navbar.** Primary content, utilities, and
+  controls center together, so "Schedule a Test Drive | Ask a question"
+  reads as one unit instead of two things pinned to opposite edges.
+- **Content decides the size.** Floating and compact surfaces size to what
+  they hold. When content gets crowded they **widen before they collapse**
+  anything — widening costs nothing, collapsing hides something. Only when
+  the viewport has no more room does a priority-ordered collapse run
+  (section navigation gives way before chat and search do).
+- **Phones change the composition, not just the scale.** Below 480px the
+  inline chat field becomes a single chat button (it only ever handed off
+  to the chat window anyway), and prompts get their own row — rather than
+  shrinking the desktop layout until everything truncates.
+
+### Orchestration
+
+- **Takeovers borrow the space instead of adding a layer.** Survey and
+  Quote temporarily replace the primary content and put it back afterward,
+  using one shared snapshot, so whichever finishes last restores the
+  original.
+- **Quote outranks Survey.** A returning visitor who has already shown
+  buying intent is a more valuable moment than a general site survey. The
+  survey is queued, not lost, and returns when the quote prompt clears.
+- **Prompts wait.** A configurable delay (default 3 seconds) with a visible
+  countdown in the panel, and a short beat before a held-back prompt
+  follows whatever was blocking it.
+- **Transitions are sequenced.** The color shifts first, the old content
+  fades out, the new content rises in, and the surface animates between
+  sizes — a deliberate handoff rather than a jump-cut. Changes that land
+  mid-transition merge into a single render, so a survey preempted in the
+  same moment never flashes on screen.
+
+### Utilities as entry points
+
+- **Chat starts in the bar and continues in a window.** The bar holds the
+  entry point; the conversation moves to a conventional corner window that
+  sits just above the bar. A footer can't hold a conversation, and a bubble
+  on its own is easy to miss.
+- **One panel, several occupants.** Search results, suggested chat prompts,
+  and the quote form all open in the same panel above the bar, so there's
+  one pattern to learn and one space to govern.
+
+### Lead capture
+
+- **Target intent, not everyone.** The quote prompt appears when a visitor
+  who clicked a CTA, used chat or search, or reached the Shopping section
+  comes back to the tab — not on a timer, and not on exit intent.
+- **The whole production form, one short step at a time.** Every field from
+  the dealer-pricing form is kept — vehicle, contact details and consent,
+  dealer, optional details — but split into Vehicle → You → Dealer →
+  Review. Anything the page already knows is filled in (the car being
+  viewed, or the one picked in search; the nearest dealers from the ZIP just
+  entered), and the optional fields sit behind one toggle, so the required
+  path is three quick steps.
+- **Don't lose the visitor's work.** Progress survives closing the panel
+  (the button then reads "Continue My Quote"); validation is inline and
+  specific; and each error clears as soon as it's fixed.
+
+### Visual language and motion
+
+- **Color means "something specific is happening."** Chat is blue, search
+  teal, survey violet, quote green, privacy amber. Everyday commerce content
+  stays on the brand's neutral black and white, so color signals a state
+  instead of becoming decoration.
+- **Motion is restrained and optional.** One Animation timing control
+  governs every transition, and visitors who prefer reduced motion get
+  instant state changes.
+
+### Accessibility and interaction
+
+- **Popovers behave like popovers.** Escape and clicking away close them,
+  and focus returns somewhere sensible — deliberately not into the chat
+  field, which would count as reopening chat.
+- **Hidden means unreachable.** Collapsed content is made `inert` the
+  instant it hides, so keyboard users can't tab into it mid-animation.
+- **The form guides focus.** Each quote step moves focus to its heading,
+  and a failed Continue moves it to the first field with a problem.
+
+## Roadmap: V1, V2, V3
+
+The panel tags every control so you can tell a client, in one glance,
+what's actually being proposed for the next release vs. what's exploratory.
+
+- **V1 — Better Persistent Surface** (realistic first ask): full-width /
+  floating presentation, flexible CTA + message compositions, Chat
+  coordination, optional Search entry, responsive composition, basic
+  entrance animation, clean orchestration with required UI.
+- **V2 — Smarter Persistent Surface** (near-term roadmap): message
+  rotation / ticker / manual rotator, minimize & dismiss-with-restore,
+  Scroll Spy (orientation, navigation, contextual CTA), Survey integration,
+  Request a Quote (returning-visitor lead-gen prompt).
+- **V3 — Sitewide Utility Layer** (future / exploratory only, labeled as
+  such in the panel): richer Chat (device-simulated iMessage handoff),
+  language selector, province selector, market/global selector.
+
+Nothing here implies the platform team should build all of this at once —
+that separation is the point of the demo.
+
+## Measuring success
+
+Every state change in the prototype emits an event (see the panel's
+**Event Log**), which doubles as a draft analytics contract: each occupant
+of the surface can be measured against the same baseline. Proposed measures
+for a pilot:
+
+| Question | Signal (event names from the prototype) |
+|---|---|
+| Is the surface earning its space? | Click-through on the surface vs. today's footer (`cta_clicked`), broken down by composition and presentation |
+| Does chat get used more as a built-in entry point than as a bubble? | Conversations started (`chat_opened`), and from which entry point |
+| Where does the quote form lose people? | Step-by-step funnel (`quote_step`), which fields fail validation (`quote_validation`), and completions (`quote_submitted`) |
+| Are prompts welcome, or just tolerated? | Dismissals vs. engagement (`survey_dismissed`, `quote_dismissed` vs. `quote_submitted`), and how often a prompt had to wait its turn (`…_triggered — waiting`) |
+| Does targeting pay off? | Quote completion for returning, high-intent visitors vs. a prompt shown to everyone |
+
+Guardrails to watch alongside: bounce rate and scroll depth on pages with
+the surface; consent-accept rates, since the privacy notice must not
+suffer; and accidental taps near the bottom edge on phones.
+
+## How the prototype is built
+
+- **No build step, three files** (`index.html`, `styles.css`, `script.js`).
+  Anyone can open it, fork it, or paste it into CodePen. It's a thinking
+  tool for stakeholders, not production code, so it shouldn't need a
+  toolchain to evaluate.
+- **One component, driven by state.** A single `state` object describes
+  everything — composition, presentation, which layer is active, what's
+  scheduled — and render functions rebuild the component from it. Presets
+  are just patches to that state, which is the most direct evidence that
+  the component really is reusable.
+- **CSS does the visual work.** Presentations, finishes, and colors are
+  data attributes on one element (`data-presentation`, `data-surface`,
+  `data-kind`), and animation is CSS transitions and keyframes. JavaScript
+  only measures sizes where CSS can't animate on its own (the surface
+  resizing between states).
+- **Presenter tooling is kept separate from the proposal.** The Demo Flow,
+  demo notes, Active layer readout, Event Log, device-frame preview, and
+  shareable links exist to run the pitch. They're styled like a dev tool
+  and tagged "Prototype tool" so nobody mistakes them for proposed site UI.
+- **Checked like a product.** Changes were verified with scripted browser
+  sweeps (Playwright) across every preset, presentation, and desktop /
+  tablet / phone width — looking for see-through surfaces, off-screen
+  content, overlapping elements, undersized tap targets, and keyboard
+  dismissal. Those scripts aren't included in this repo.
+- **A fictional brand, a real field set.** "Solstice Motors" and the
+  Aurelia GT keep the demo free of any real OEM's branding, while the quote
+  form carries the real production form's fields, so the multi-step
+  argument is an honest comparison.
+
+## Feature notes
+
+Detail on each behavior, and the reasoning behind specific choices.
+
+### Content-driven layout
+
+Content is centered as one balanced cluster within the bar (primary +
+utilities + controls together), rather than the more common navbar pattern
+of primary content pinned left and utilities pushed to the far right —
+short compositions like "Schedule a Test Drive | Ask a Question" now read
+as one connected unit instead of two things awkwardly far apart, which
+was part of the original brief's point.
+
+Floating and Compact/pill go a step further: the surface itself sizes to
+its content (capped at a sane max-width for busy compositions) instead of
+occupying a fixed-width box regardless of how little it holds. Search
+Utility is the deliberate exception — its field still stretches to fill
+available width, since a search box is meant to invite typing, not hug
+itself into a chip.
+
+### Floating and compact both expand before they ever collapse anything
+
+Floating panels and the compact/pill treatment both default to a compact
+width, but neither is locked to it. When content is too crowded for the
+default cap, the panel first tries the option that costs nothing — taking
+more width, if the viewport actually has room to give — before any
+collapse logic even runs. Apply "Kitchen Sink (Overload)" in Floating (or
+Compact) presentation on a wide-enough window and watch the panel visibly
+grow to fit nav + Chat + Search rather than immediately shrinking
+anything; switch back to a simple preset and it animates back down to
+compact, since holding onto extra width it no longer needs isn't
+"opportunistic" either.
+
+"Crowded" isn't only the extreme, nav-overflowing case — the panel also
+grows for the much more everyday case of a message or CTA that's simply
+longer than usual and would otherwise quietly ellipsize with room to
+spare. Type a longer line into Presenter Tools → Custom content override
+in either presentation and watch the panel grow to show it in full rather
+than truncating it — this is what makes the width feel like it's actually
+driven by its content, not just reactive to a couple of hard-coded
+overflow cases.
+
+Compact keeps its own, smaller ceiling (800px vs. Floating's 920px) so it
+stays visibly more contained even at its widest — the two presentations
+are meant to read differently, not converge into the same shape once
+something makes them grow.
+
+This is deliberately **not** gated behind the Auto-collapse toggle the way
+nav/utilities collapsing is: expanding the container can't hide or lose
+any content the way collapsing can, so there's no tradeoff to make it
+opt-in — it's just a better default. Collapse is still there as the
+fallback for when even the expanded width isn't enough (a narrow viewport
+genuinely has nowhere further to give, or the content is long enough to
+still need trimming even at the wider cap), which is why Kitchen Sink at
+a narrow width still ends up demonstrating both mechanics in sequence: it
+expands as far as the viewport allows, and only turns to collapsing nav/
+utilities if that still isn't sufficient. The crowding badge names which
+of the two actually resolved it, and which presentation did the expanding.
+
+### Busy / overflow edge cases
+
+Two ways to show what happens when several things want the same real estate:
+
+- **"Show Uncoordinated Chaos"** (Orchestration Demos): a deliberately naive
+  comparison — four independently-styled widgets (a promo footer, a chat
+  bubble, a survey card, a cookie banner) fixed-positioned with no shared
+  coordination layer, the way they'd look if four different teams or
+  vendors each shipped their own persistent widget. Turn it on while the
+  real coordinated sticky component is showing to watch it get buried —
+  that's the point.
+- **"Kitchen Sink (Overload)" preset + Auto-collapse** (Busy / Overflow
+  Edge Cases): applies section navigation + Chat + Search all at once, then
+  lets you compare two outcomes at a narrow width: raw (nav silently
+  eats extra items into its own horizontal scroll, with no visible cue that
+  Performance is even there) vs. auto-collapse on (nav explicitly collapses
+  to the active section + a "More" button before utilities shrink to
+  icon-only) — a real measurement-driven mechanism, not a canned animation.
+  The crowding badge reports which items collapsed, and admits when it's
+  still tight even after collapsing everything it can.
+
+### Text links vs. buttons, and the "Active layer" readout
 
 The **Presentation** section has a **Primary CTA style** toggle (Button /
-Text link). Editorial, brand-forward compositions — Brand Story and Concept
-Vehicle — default to the text-link treatment ("Formula 1 — Explore the Team
+Text link). Editorial, brand-forward compositions — like Brand Story — default to
+the text-link treatment ("Formula 1 — Explore the Team
 →") since a pill button reads as harder-sell than that content warrants;
 commerce-forward presets (Tesla-Inspired, HVB + Chat) keep the button. The
 toggle applies to whichever composition is currently shown, so any preset
@@ -131,7 +447,7 @@ Lead capture / Quote, Survey, Contextual content, or Primary content) — so
 the orchestration model's decision is visible in real time instead of only
 inferable from behavior. It's also color-coded now — see below.
 
-## Color-coding chat, search, survey, quote, and privacy
+### Color-coding chat, search, survey, quote, and privacy
 
 Every distinct message/utility type that can occupy the sticky surface now
 carries its own hue, so which kind of thing is on screen reads at a glance
@@ -178,7 +494,7 @@ received" confirmation auto-closed. Both `openFlyout()`/`closeFlyout()`
 and the two blur handlers now refresh the readout directly instead of
 relying on an event happening to call `log()` afterward.
 
-## Animation timing, and a more discrete minimize/restore
+### Animation timing, and a more discrete minimize/restore
 
 **Animation timing** (Visibility & Entrance): Snappy / Standard / Relaxed.
 Governs entrance, the minimize/restore sequence below, and other CSS
@@ -203,7 +519,7 @@ The same mechanism drives "Dismissible + restore" mode, since a dismiss
 recovery affordance is conceptually the same collapse/expand behavior as
 minimize.
 
-## Always visible by default
+### Always visible by default
 
 Every Demo Flow step and the initial page load now default to **Always
 visible** rather than requiring a scroll first — the point of the flow is
@@ -214,7 +530,7 @@ are still there in the panel for anyone who wants to show that behavior
 specifically — the default just isn't gating the rest of the demo on it
 anymore.
 
-## The chat input hands off to a real chat window
+### The chat input hands off to a real chat window
 
 Wherever the sticky bar shows the "Ask a question" input field (Tesla-
 Inspired, Stress Test, Kitchen Sink, or the Chat Demo's "Ask a Question"
@@ -234,67 +550,7 @@ for the inline chat field, and the panel's Active Layer readout reflects
 it. Pressing Enter in either the sticky bar's field or the window's own
 composer submits, matching how a chat input is expected to behave.
 
-## Floating and compact both expand before they ever collapse anything
-
-Floating panels and the compact/pill treatment both default to a compact
-width, but neither is locked to it. When content is too crowded for the
-default cap, the panel first tries the option that costs nothing — taking
-more width, if the viewport actually has room to give — before any
-collapse logic even runs. Apply "Kitchen Sink (Overload)" in Floating (or
-Compact) presentation on a wide-enough window and watch the panel visibly
-grow to fit nav + Chat + Search rather than immediately shrinking
-anything; switch back to a simple preset and it animates back down to
-compact, since holding onto extra width it no longer needs isn't
-"opportunistic" either.
-
-"Crowded" isn't only the extreme, nav-overflowing case — the panel also
-grows for the much more everyday case of a message or CTA that's simply
-longer than usual and would otherwise quietly ellipsize with room to
-spare. Type a longer line into Presenter Tools → Custom content override
-in either presentation and watch the panel grow to show it in full rather
-than truncating it — this is what makes the width feel like it's actually
-driven by its content, not just reactive to a couple of hard-coded
-overflow cases.
-
-Compact keeps its own, smaller ceiling (800px vs. Floating's 920px) so it
-stays visibly more contained even at its widest — the two presentations
-are meant to read differently, not converge into the same shape once
-something makes them grow.
-
-This is deliberately **not** gated behind the Auto-collapse toggle the way
-nav/utilities collapsing is: expanding the container can't hide or lose
-any content the way collapsing can, so there's no tradeoff to make it
-opt-in — it's just a better default. Collapse is still there as the
-fallback for when even the expanded width isn't enough (a narrow viewport
-genuinely has nowhere further to give, or the content is long enough to
-still need trimming even at the wider cap), which is why Kitchen Sink at
-a narrow width still ends up demonstrating both mechanics in sequence: it
-expands as far as the viewport allows, and only turns to collapsing nav/
-utilities if that still isn't sufficient. The crowding badge names which
-of the two actually resolved it, and which presentation did the expanding.
-
-## Busy / overflow edge cases
-
-Two ways to show what happens when several things want the same real estate:
-
-- **"Show Uncoordinated Chaos"** (Orchestration Demos): a deliberately naive
-  comparison — four independently-styled widgets (a promo footer, a chat
-  bubble, a survey card, a cookie banner) fixed-positioned with no shared
-  coordination layer, the way they'd look if four different teams or
-  vendors each shipped their own persistent widget. Turn it on while the
-  real coordinated sticky component is showing to watch it get buried —
-  that's the point.
-- **"Kitchen Sink (Overload)" preset + Auto-collapse** (Busy / Overflow
-  Edge Cases): applies section navigation + Chat + Search all at once, then
-  lets you compare two outcomes at a narrow width: raw (nav silently
-  eats extra items into its own horizontal scroll, with no visible cue that
-  Performance is even there) vs. auto-collapse on (nav explicitly collapses
-  to the active section + a "More" button before utilities shrink to
-  icon-only) — a real measurement-driven mechanism, not a canned animation.
-  The crowding badge reports which items collapsed, and admits when it's
-  still tight even after collapsing everything it can.
-
-## Request a Quote: a returning-visitor lead-gen prompt
+### Request a Quote: a returning-visitor lead-gen prompt
 
 A second scenario that reuses the same "takes over the primary zone"
 mechanism as Survey: if a visitor does something that signals real intent —
@@ -330,7 +586,7 @@ Both layers now share one snapshot-and-restore mechanism
 keeping its own copy of "what was there before," so whichever one releases
 last is the one that puts the original content back.
 
-## The full quote form, as four short steps
+### The full quote form, as four short steps
 
 The production Request Dealer Pricing form asks for a lot: model year,
 model, drivetrain, and trim; first/last name, ZIP, phone, email, and a
@@ -374,7 +630,7 @@ Grand Touring" — and the event log records the vehicle, dealer, and which
 optional details were filled in. Dealers, prices, and distances are mock
 data; there's no backend.
 
-## Sequencing: prompts arrive after a delay, takeovers animate
+### Sequencing: prompts arrive after a delay, takeovers animate
 
 Real intercepts don't appear the instant a page loads, so Survey and Quote
 are now *scheduled* rather than shown on the spot. **Orchestration Demos →
@@ -410,7 +666,7 @@ Quote in the same moment never flashes on screen. And switching presets
 cancels anything still on its way, so a prompt scheduled for one scene
 never lands in the next.
 
-## Quality-of-life pass
+### Quality-of-life pass
 
 A scripted audit (every preset × presentation at desktop, tablet, and
 phone widths) checking for see-through surfaces, content spilling off
@@ -450,43 +706,7 @@ dismissal. What it found and what changed:
   same icon as the bar's other controls instead of a tiny text glyph; empty
   utility/control zones no longer reserve a gap in the row.
 
-## What's V1 / V2 / V3
-
-The panel tags every control so you can tell a client, in one glance,
-what's actually being proposed for the next release vs. what's exploratory.
-
-- **V1 — Better Persistent Surface** (realistic first ask): full-width /
-  floating presentation, flexible CTA + message compositions, Chat
-  coordination, optional Search entry, responsive composition, basic
-  entrance animation, clean orchestration with required UI.
-- **V2 — Smarter Persistent Surface** (near-term roadmap): message
-  rotation / ticker / manual rotator, minimize & dismiss-with-restore,
-  Scroll Spy (orientation, navigation, contextual CTA), Survey integration,
-  Request a Quote (returning-visitor lead-gen prompt).
-- **V3 — Sitewide Utility Layer** (future / exploratory only, labeled as
-  such in the panel): richer Chat (device-simulated iMessage handoff),
-  language selector, province selector, market/global selector.
-
-Nothing here implies the platform team should build all of this at once —
-that separation is the point of the demo.
-
-## Content-driven layout
-
-Content is centered as one balanced cluster within the bar (primary +
-utilities + controls together), rather than the more common navbar pattern
-of primary content pinned left and utilities pushed to the far right —
-short compositions like "Schedule a Test Drive | Ask a Question" now read
-as one connected unit instead of two things awkwardly far apart, which
-was part of the original brief's point.
-
-Floating and Compact/pill go a step further: the surface itself sizes to
-its content (capped at a sane max-width for busy compositions) instead of
-occupying a fixed-width box regardless of how little it holds. Search
-Utility is the deliberate exception — its field still stretches to fill
-available width, since a search box is meant to invite typing, not hug
-itself into a chip.
-
-## Notable UX/technical calls worth flagging to stakeholders
+## Open questions and caveats
 
 - **Phones change the composition, not just the size.** Below 480px the
   inline "Ask a question" field becomes a single round chat button that
@@ -552,10 +772,20 @@ itself into a chip.
   about the absence of coordination, not modeling how any particular
   real vendor widget actually behaves.
 
-## Accessibility notes
+## Accessibility
 
-Reduced-motion is respected throughout (entrance animation, ticker, and
-message rotation all disable or fall back to static when
-`prefers-reduced-motion: reduce` is set). All interactive controls are
-keyboard-reachable with visible focus states, touch targets are ≥44px,
-and moving content (ticker, rotating messages) pauses on hover/focus.
+Reduced motion is respected throughout: entrance, takeover, and step
+animations, the ticker, and message rotation all become instant or static
+when `prefers-reduced-motion: reduce` is set. Every control is
+keyboard-reachable with a visible focus state; Escape and clicking away
+close popovers; collapsed content is made `inert` immediately so focus
+can't land on hidden controls; closing the chat window returns focus to the
+bar; and the quote form moves focus to each step's heading and to the first
+invalid field, with each error tied to its field via `aria-describedby`.
+Chat and search triggers are 44px. Every other control in the bar, chat
+window, and quote form measures at least 27px in its smaller dimension (the
+smallest are the quote form's Back and Edit links), which clears the WCAG
+2.2 minimum of 24px; the one smaller target, the "Privacy Statement" link
+inside the consent sentence, falls under that guideline's exception for
+links within a line of text. Moving content (ticker, rotating messages)
+pauses on hover and focus.
