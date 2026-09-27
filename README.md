@@ -20,7 +20,7 @@ top of and scroll against.
 - [Why this exists](#why-this-exists) — the problem at the bottom of the screen
 - [The strategy](#the-strategy) — one shared surface, with rules
 - [Try it](#try-it) — live site, or run it locally
-- [Demoing it live](#demoing-it-live) — the eight-step Demo Flow, presets, presenter tools
+- [Demoing it live](#demoing-it-live) — the ten-step Demo Flow, presets, presenter tools
 - [Tactical decisions](#tactical-decisions) — how the strategy became specific design and engineering choices
 - [Roadmap: V1, V2, V3](#roadmap-v1-v2-v3) — what's proposed now vs. later
 - [Measuring success](#measuring-success) — proposed pilot metrics
@@ -66,7 +66,8 @@ everything shares — and give it rules.**
 2. **Arbitrate, don't stack.** When two things want the space, a priority
    model decides: required UI (the privacy notice) › an active interaction
    (chat or search in use) › a requested utility (an open panel) › lead
-   capture (Quote) › survey › contextual content › primary content.
+   capture (Quote) › survey › a timed notice › contextual content ›
+   primary content.
    Lower-priority items wait their turn instead of overlapping. The panel's
    **Active layer** readout shows the decision as it happens.
 3. **Never interrupt intent.** A visitor mid-chat or mid-search doesn't get
@@ -133,18 +134,27 @@ you pick a preset by hand.
 4. **Presentation** — toggle Full-width / Floating / Compact and the three
    surface finishes (opaque, translucent/blur, bordered) to show the same
    component adapting its shell.
-5. **The Future (V2)** — turns on message rotation and contextual Scroll
-   Spy, so the CTA changes (and cross-fades) as the visitor scrolls through
-   Design, Interior, Technology, Performance.
-6. **Chat & Search** — the Chat + Search preset: both utilities side by
+5. **Message Rotation (V2)** — several messages share one slot and rotate
+   on a timer, pausing while the bar is hovered or focused.
+6. **Scroll Spy (V2)** — the Scroll Spy preset, starting from the top of the
+   page: scroll down and the CTA changes (and cross-fades) to match each
+   section — Design, Interior, Technology, Performance, Shopping. Its demo
+   note updates live ("Right now: Interior → 'Interior Features'"). The
+   Scroll Spy panel section also has orientation and section-navigation
+   modes.
+7. **Chat & Search** — the Chat + Search preset: both utilities side by
    side, each in its own color. Focus the chat field or open Search and the
    whole surface tints to match; Esc or clicking away closes things.
-7. **Intercept Prompts** — the Survey → Quote Handoff preset. The readout
+8. **Timed Notice** — an ancillary partner message (a satellite-radio free
+   listening weekend) arrives after the Prompt delay and closes itself when
+   the line along the top of the bar runs out. Hover or focus the bar to
+   pause it.
+9. **Intercept Prompts** — the Survey → Quote Handoff preset. The readout
    counts down; the Survey arrives after the Prompt delay, then the
    returning-visitor Quote animates over it. Click **Get My Quote** to walk
    the four-step request form. Dismiss the Quote and the Survey comes back
    after a short beat.
-8. **Orchestration** — shows the privacy notice immediately and schedules
+10. **Orchestration** — shows the privacy notice immediately and schedules
    a Survey and a Quote prompt behind it. When they land, privacy still wins
    and they wait ("…_triggered — waiting"). Accept the notice and the Quote
    follows after a short beat; dismiss the Quote and the Survey follows
@@ -235,6 +245,13 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
 - **Quote outranks Survey.** A returning visitor who has already shown
   buying intent is a more valuable moment than a general site survey. The
   survey is queued, not lost, and returns when the quote prompt clears.
+- **Ancillary messages step aside and time out.** A partner message (the
+  satellite-radio free weekend) sits at the lowest optional priority and
+  closes itself after a few seconds, with a line along the top of the bar
+  shrinking to show the time left. If a survey or quote needs the space, the
+  notice is dropped rather than queued — a time-boxed message shouldn't pile
+  up for later — and the timer pauses while the visitor hovers, focuses the
+  bar, or is on another tab, so it never expires unseen.
 - **Prompts wait.** A configurable delay (default 3 seconds) with a visible
   countdown in the panel, and a short beat before a held-back prompt
   follows whatever was blocking it.
@@ -302,6 +319,7 @@ what's actually being proposed for the next release vs. what's exploratory.
 - **V2 — Smarter Persistent Surface** (near-term roadmap): message
   rotation / ticker / manual rotator, minimize & dismiss-with-restore,
   Scroll Spy (orientation, navigation, contextual CTA), Survey integration,
+  timed ancillary notices that close themselves,
   Request a Quote (returning-visitor lead-gen prompt).
 - **V3 — Sitewide Utility Layer** (future / exploratory only, labeled as
   such in the panel): richer Chat (device-simulated iMessage handoff),
@@ -324,6 +342,7 @@ for a pilot:
 | Where does the quote form lose people? | Step-by-step funnel (`quote_step`), which fields fail validation (`quote_validation`), and completions (`quote_submitted`) |
 | Are prompts welcome, or just tolerated? | Dismissals vs. engagement (`survey_dismissed`, `quote_dismissed` vs. `quote_submitted`), and how often a prompt had to wait its turn (`…_triggered — waiting`) |
 | Does targeting pay off? | Quote completion for returning, high-intent visitors vs. a prompt shown to everyone |
+| Do timed notices get noticed? | How notices end (`notice_closed`: acted on, dismissed, timed out, or dropped for a higher-priority prompt), and whether the pause-on-hover gets used |
 
 Guardrails to watch alongside: bounce rate and scroll depth on pages with
 the surface; consent-accept rates, since the privacy notice must not
@@ -638,6 +657,45 @@ contact you by phone at … with their best price on the 2025 Aurelia GT
 Grand Touring" — and the event log records the vehicle, dealer, and which
 optional details were filled in. Dealers, prices, and distances are mock
 data; there's no backend.
+
+### Timed notices that close themselves
+
+Not every message deserves a dismiss button that someone has to find. The
+**Timed Notice** scenario (Demo Flow step 8, the Timed Notice preset, or
+**Orchestration Demos → Show Timed Notice**) uses an ancillary partner
+message — "Free listening weekend: Starwave Satellite Radio is on in every
+Aurelia GT through Sunday," from a fictional satellite-radio provider — to
+show a message that takes over the primary zone briefly and then leaves on
+its own:
+
+- **Visible timing.** A thin line along the top edge of the bar shrinks
+  from full width to nothing over the notice's lifetime (5, 8, or 12
+  seconds, set under **Orchestration Demos → Timed notice duration**;
+  default 8). When it runs out, the notice closes and the previous content
+  comes back with the usual animated takeover. The line is driven by the Web
+  Animations API, and the animation *is* the timer — so the line and the
+  close can't drift apart.
+- **Pausable.** Hovering or focusing the bar pauses the countdown (the line
+  dims while it's paused), and so does switching to another tab — the
+  visitor can always read it, and it never expires while they're away. The
+  × closes it early, and "Learn more" closes it on the way out.
+- **Lowest optional priority.** It waits behind the privacy notice and any
+  active chat or search like everything else, and if a survey or quote
+  prompt needs the space, the notice is **dropped, not queued** — a
+  time-boxed partner message shouldn't reappear later, out of context.
+- **Its own quiet hue.** Slate, not a brand or action color: informational,
+  deliberately low-key, and distinct from the chat/search/survey/quote/
+  privacy colors.
+- **Adapts to the space.** On wide screens it's one line: message, a
+  text-link CTA (lighter-touch than a button, since it's a partner message),
+  and ×. Where one line can't hold it — tablets, phones, and the compact
+  pill — it becomes a toast: the message beside its × (up to three lines),
+  "Learn more" underneath, and compact softens from a pill into a rounded
+  card.
+
+The event log records how every notice ended (`notice_closed` — acted on,
+dismissed, timed out, or dropped for a higher-priority prompt), which is
+exactly the data needed to tune the duration.
 
 ### Sequencing: prompts arrive after a delay, takeovers animate
 

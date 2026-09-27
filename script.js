@@ -49,6 +49,13 @@
     'Discover current offers',
   ];
 
+  // An ancillary, time-boxed partner message (fictional satellite-radio provider).
+  const NOTICE = {
+    message: 'Free listening weekend: Starwave Satellite Radio is on in every Aurelia GT through Sunday.',
+    cta: 'Learn more',
+  };
+  const NOTICE_DURATIONS = { short: 5000, standard: 8000, long: 12000 };
+
   const SUGGESTED_PROMPTS = [
     'Help me find a vehicle',
     'What EVs are available?',
@@ -217,6 +224,33 @@
       },
     },
     {
+      id: 'scroll-spy',
+      label: 'Scroll Spy',
+      hint: 'The CTA follows the section in view',
+      version: 'v2',
+      group: 'compositions',
+      patch: {
+        legacyMode: false, presentation: 'floating', scrollSpy: 'contextual',
+        primaryType: 'message-cta', primary: { message: 'Aurelia GT', cta: { label: 'Schedule a Test Drive' } },
+        chat: 'off', search: 'off',
+      },
+      note: 'Scroll the page: the CTA changes to match each section. The Scroll Spy panel section also has orientation and section-navigation modes.',
+    },
+    {
+      id: 'timed-notice',
+      label: 'Timed Notice',
+      hint: 'Free listening weekend — closes itself',
+      version: 'v2',
+      group: 'prompts',
+      patch: {
+        legacyMode: false, presentation: 'floating', scrollSpy: 'off',
+        primaryType: 'message-cta', primary: { message: 'Discover the latest', cta: { label: 'Explore' } },
+        chat: 'off', search: 'off',
+      },
+      after() { scheduleOverlay('notice', promptDelayMs()); },
+      note: 'A partner message arrives after the Prompt delay and closes itself when the line along the top of the bar runs out. Hover or focus the bar to pause it.',
+    },
+    {
       id: 'chat-search',
       label: 'Chat + Search',
       hint: 'Test Drive | Ask a Question | Search — each utility in its own color',
@@ -329,6 +363,9 @@
     quoteDismissed: false,
     quoteSubmitted: false,
     promptDelay: 'standard', // how long Survey/Quote wait before arriving
+    noticeActive: false, // the timed, auto-closing ancillary notice
+    pendingNotice: false,
+    noticeDuration: 'standard',
     quoteDraft: null, // in-progress multi-step quote form (survives closing the panel)
     vehicleInterest: null, // vehicle the visitor clicked in search results, used to pre-fill the quote
 
@@ -348,6 +385,7 @@
   const $dismissBtn = document.getElementById('stickyDismiss');
   const $restoreBtn = document.getElementById('stickyRestore');
   const $collapseInner = document.getElementById('stickyCollapseInner');
+  const $noticeTimer = document.getElementById('stickyTimer');
   const $restoreCollapseInner = document.getElementById('stickyRestoreCollapseInner');
 
   const $legacyFooter = document.getElementById('legacyFooter');
@@ -426,11 +464,13 @@
     if (state.flyout === 'search' || state.flyout === 'nav-overflow') return 'Requested utility — open';
     if (state.quoteActive) return 'Lead capture — Request a Quote';
     if (state.surveyActive) return 'Survey / optional engagement';
+    if (state.noticeActive) return 'Ancillary notice — closes itself';
     if (state.scrollSpy === 'contextual') return `Contextual content — ${sectionLabel(state.activeSection)}`;
     if (state.scrollSpy === 'navigation') return 'Contextual content — section navigation';
     if (state.scrollSpy === 'orientation') return 'Contextual content — orientation';
     if (state.pendingQuote) return 'Primary content (quote prompt waiting)';
     if (state.pendingSurvey) return 'Primary content (survey waiting)';
+    if (state.pendingNotice) return 'Primary content (notice waiting)';
     return 'Primary persistent content';
   }
 
@@ -446,6 +486,7 @@
     if (state.flyout === 'search') return 'search';
     if (state.quoteActive) return 'quote';
     if (state.surveyActive) return 'survey';
+    if (state.noticeActive) return 'notice';
     return null;
   }
 
@@ -462,7 +503,7 @@
     renderDemoNotes();
     if (!$activeLayerReadout) return;
     const arriving = Object.entries(scheduled).map(([k, v]) =>
-      `${k === 'quote' ? 'Quote prompt' : 'Survey'} arriving in ${Math.max(0, (v.dueAt - performance.now()) / 1000).toFixed(1)}s`);
+      `${k === 'quote' ? 'Quote prompt' : k === 'notice' ? 'Timed notice' : 'Survey'} arriving in ${Math.max(0, (v.dueAt - performance.now()) / 1000).toFixed(1)}s`);
     $activeLayerReadout.innerHTML = `Active layer: <strong>${computeActiveLayerLabel()}</strong>`
       + arriving.map((t) => `<span class="active-layer__next">${t}</span>`).join('');
     if (kind) $activeLayerReadout.dataset.kind = kind;
@@ -517,6 +558,7 @@
     $sticky.dataset.surface = state.surface;
     $sticky.dataset.survey = String(state.surveyActive);
     $sticky.dataset.quote = String(state.quoteActive);
+    $sticky.dataset.notice = String(state.noticeActive);
 
     $legacyFooter.hidden = !state.legacyMode;
     $legacyChatFab.hidden = !state.legacyMode;
@@ -548,10 +590,11 @@
 
   function renderPrimary() {
     $primary.innerHTML = '';
-    $primary.classList.toggle('is-fluid', !state.surveyActive && !state.quoteActive && state.scrollSpy === 'off' && state.primaryType === 'search-inline');
+    $primary.classList.toggle('is-fluid', !state.surveyActive && !state.quoteActive && !state.noticeActive && state.scrollSpy === 'off' && state.primaryType === 'search-inline');
 
     if (state.quoteActive) return renderQuotePrimary();
     if (state.surveyActive) return renderSurveyPrimary();
+    if (state.noticeActive) return renderNoticePrimary();
     if (state.scrollSpy === 'navigation') return renderNavPrimary();
     if (state.scrollSpy === 'orientation') return renderOrientationPrimary();
     if (state.primaryType === 'search-inline') return renderSearchInlinePrimary();
@@ -582,6 +625,39 @@
     close.setAttribute('aria-label', 'Dismiss survey');
     close.innerHTML = closeIcon();
     close.addEventListener('click', () => dismissSurvey());
+    wrap.appendChild(close);
+
+    $primary.appendChild(wrap);
+  }
+
+  function renderNoticePrimary() {
+    const wrap = document.createElement('div');
+    wrap.className = 'primary-prompt primary-prompt--notice';
+
+    const p = document.createElement('p');
+    p.textContent = NOTICE.message;
+    const sr = document.createElement('span');
+    sr.className = 'visually-hidden';
+    sr.textContent = ' This message closes on its own; it pauses while you interact with it.';
+    p.appendChild(sr);
+    wrap.appendChild(p);
+
+    const cta = document.createElement('a');
+    cta.href = '#technology';
+    cta.className = 'cta-textlink';
+    cta.innerHTML = `${NOTICE.cta} <span aria-hidden="true">&rarr;</span>`;
+    cta.addEventListener('click', () => {
+      log('cta_clicked', 'notice: learn more');
+      dismissNotice('acted on');
+    });
+    wrap.appendChild(cta);
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'sticky__icon-btn';
+    close.setAttribute('aria-label', 'Dismiss notice');
+    close.innerHTML = closeIcon();
+    close.addEventListener('click', () => dismissNotice('dismissed'));
     wrap.appendChild(close);
 
     $primary.appendChild(wrap);
@@ -806,10 +882,10 @@
     }, 4200);
   }
 
-  $sticky.addEventListener('mouseenter', () => { state.rotationPaused = true; });
-  $sticky.addEventListener('mouseleave', () => { state.rotationPaused = false; });
-  $sticky.addEventListener('focusin', () => { state.rotationPaused = true; });
-  $sticky.addEventListener('focusout', () => { state.rotationPaused = false; });
+  $sticky.addEventListener('mouseenter', () => { state.rotationPaused = true; pauseNotice('hover'); });
+  $sticky.addEventListener('mouseleave', () => { state.rotationPaused = false; resumeNotice('hover'); });
+  $sticky.addEventListener('focusin', () => { state.rotationPaused = true; pauseNotice('focus'); });
+  $sticky.addEventListener('focusout', () => { state.rotationPaused = false; resumeNotice('focus'); });
 
   /* ------------------------------------------------------------------ *
    * Rendering: utilities zone (chat + search)
@@ -1765,7 +1841,7 @@
   }
 
   function restoreCompositionIfIdle() {
-    if (state.surveyActive || state.quoteActive) return;
+    if (state.surveyActive || state.quoteActive || state.noticeActive) return;
     if (state.priorComposition) {
       state.primaryType = state.priorComposition.primaryType;
       state.primary = state.priorComposition.primary;
@@ -1790,7 +1866,7 @@
 
   function scheduleOverlay(kind, ms, reason) {
     if (scheduled[kind]) return;
-    const fire = kind === 'quote' ? triggerQuote : triggerSurvey;
+    const fire = { quote: triggerQuote, survey: triggerSurvey, notice: triggerNotice }[kind];
     if (!ms) { fire(); return; }
     scheduled[kind] = {
       dueAt: performance.now() + ms,
@@ -1916,6 +1992,7 @@
     }
     if (state.surveyActive) return;
 
+    dropNoticeFor('survey');
     captureCompositionIfNeeded();
     state.surveyActive = true;
     state.dismissed = false;
@@ -1955,6 +2032,7 @@
       state.pendingSurvey = true;
       log('survey_preempted', 'quote prompt has priority');
     }
+    dropNoticeFor('quote prompt');
 
     captureCompositionIfNeeded();
     state.quoteActive = true;
@@ -2001,6 +2079,8 @@
   // Returning to the tab after a qualifying action is what a real site
   // would use to decide "this visitor is worth a quote prompt."
   document.addEventListener('visibilitychange', () => {
+    // A timed notice shouldn't run out while the visitor is somewhere else.
+    if (document.hidden) pauseNotice('away'); else resumeNotice('away');
     if (!document.hidden && state.hasQualifyingAction) scheduleQuote();
   });
 
@@ -2018,7 +2098,106 @@
     if (state.pendingSurvey) {
       state.pendingSurvey = false;
       scheduleOverlay('survey', beat, 'released');
+      return;
     }
+    if (state.pendingNotice && !state.quoteActive && !state.surveyActive) {
+      state.pendingNotice = false;
+      scheduleOverlay('notice', beat, 'released');
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Timed notice — the lowest-priority optional message. It borrows the
+   * primary zone like Survey/Quote, but closes itself when its time runs
+   * out (shown as a line along the top edge that shrinks to nothing), and
+   * steps aside entirely — dropped, not queued — if a survey or quote
+   * needs the space, since a time-boxed partner message shouldn't pile up.
+   * ------------------------------------------------------------------ */
+
+  let noticeAnim = null;
+  const noticePauses = new Set();
+
+  function noticeMs() {
+    return NOTICE_DURATIONS[state.noticeDuration] ?? NOTICE_DURATIONS.standard;
+  }
+
+  function triggerNotice() {
+    if (state.noticeActive) return;
+    const blocker = state.privacyActive ? 'privacy notice active'
+      : (state.activeInteraction || state.chatWindowOpen) ? 'interaction in use'
+        : (state.quoteActive || state.surveyActive) ? 'a higher-priority prompt is showing' : null;
+    if (blocker) {
+      state.pendingNotice = true;
+      log('notice_triggered', `waiting — ${blocker}`);
+      return;
+    }
+    captureCompositionIfNeeded();
+    state.noticeActive = true;
+    state.dismissed = false;
+    state.minimized = false;
+    state.scrollVisible = true;
+    log('notice_triggered', `shown — closes in ${noticeMs() / 1000}s`);
+    swapPrimary(true);
+    startNoticeTimer();
+  }
+
+  function dismissNotice(reason) {
+    if (!state.noticeActive) return;
+    stopNoticeTimer();
+    state.noticeActive = false;
+    restoreCompositionIfIdle();
+    log('notice_closed', reason);
+    swapPrimary(true);
+    maybeReleasePendingOverlays();
+  }
+
+  // Called when a survey or quote takes the space: the notice just goes.
+  function dropNoticeFor(what) {
+    if (!state.noticeActive) return;
+    stopNoticeTimer();
+    state.noticeActive = false;
+    log('notice_closed', `dropped for the ${what} — ancillary notices aren't queued`);
+  }
+
+  function startNoticeTimer() {
+    stopNoticeTimer();
+    $noticeTimer.hidden = false;
+    // Web Animations: the animation is the timer, so the line and the
+    // close can't drift apart, and pausing one pauses both.
+    noticeAnim = $noticeTimer.animate(
+      [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
+      { duration: noticeMs(), easing: 'linear', fill: 'forwards' },
+    );
+    noticeAnim.onfinish = () => { noticeAnim = null; dismissNotice('timed out'); };
+    if ($sticky.matches(':hover')) pauseNotice('hover');
+    if ($sticky.contains(document.activeElement)) pauseNotice('focus');
+    if (document.hidden) pauseNotice('away');
+  }
+
+  function stopNoticeTimer() {
+    if (noticeAnim) {
+      noticeAnim.onfinish = null;
+      noticeAnim.cancel();
+      noticeAnim = null;
+    }
+    noticePauses.clear();
+    $noticeTimer.hidden = true;
+    delete $noticeTimer.dataset.paused;
+  }
+
+  function pauseNotice(reason) {
+    if (!noticeAnim) return;
+    noticePauses.add(reason);
+    noticeAnim.pause();
+    $noticeTimer.dataset.paused = 'true';
+  }
+
+  function resumeNotice(reason) {
+    if (!noticeAnim) return;
+    noticePauses.delete(reason);
+    if (noticePauses.size) return;
+    noticeAnim.play();
+    delete $noticeTimer.dataset.paused;
   }
 
   function triggerPrivacy() {
@@ -2049,6 +2228,11 @@
     state.quoteDismissed = false;
     state.quoteSubmitted = false;
     scheduleQuote();
+  });
+  document.getElementById('triggerNotice').addEventListener('click', () => scheduleOverlay('notice', promptDelayMs()));
+  document.getElementById('noticeDurationSelect').addEventListener('change', (e) => {
+    state.noticeDuration = e.target.value;
+    log('notice_duration_changed', e.target.selectedOptions[0].textContent);
   });
   document.getElementById('promptDelaySelect').addEventListener('change', (e) => {
     state.promptDelay = e.target.value;
@@ -2111,7 +2295,7 @@
     if (current !== state.activeSection) {
       state.activeSection = current;
       log('section_changed', sectionLabel(current));
-      if (!state.activeInteraction && state.scrollSpy !== 'off' && !state.surveyActive && !state.quoteActive) {
+      if (!state.activeInteraction && state.scrollSpy !== 'off' && !state.surveyActive && !state.quoteActive && !state.noticeActive) {
         // Section nav just moves its highlight — fading the whole nav on every
         // section change would be noise. Label changes (contextual CTA,
         // "Viewing: …") are a real content swap, so those cross-fade.
@@ -2138,6 +2322,7 @@
     // or finish animating on top of it.
     cancelScheduledOverlays();
     cancelSwap();
+    stopNoticeTimer();
 
     Object.assign(state, {
       legacyMode: false,
@@ -2148,6 +2333,8 @@
       // Test's privacy notice) shouldn't surface in this one.
       pendingSurvey: false,
       pendingQuote: false,
+      noticeActive: false,
+      pendingNotice: false,
       priorComposition: null,
       minimized: false,
       dismissed: false,
@@ -2342,10 +2529,12 @@
     2: 'One coordinated surface: the test-drive CTA and an inline "Ask a question" field. Send a question to hand off to the corner chat window.',
     3: 'Same component, new content every time — click through the presets below.',
     4: 'Same content, different shell — try Full-width / Floating / Compact and the surface finishes.',
-    5: 'Scroll the page: the CTA follows each section and cross-fades as it changes; messages rotate.',
-    6: 'Each utility has its own color. Focus the chat field (blue) or open Search (teal) and the whole surface tints to match. Esc or clicking away closes things.',
-    7: 'Watch the readout at the top count down. The Survey arrives after the Prompt delay, then the returning-visitor Quote animates over it — click Get My Quote to walk the four-step form. Dismiss the Quote and the Survey comes back.',
-    8: 'Privacy shows first and wins; the Survey and Quote are scheduled behind it. Accept the notice and the Quote follows after a short beat, then the Survey after that.',
+    5: 'Several messages share one slot and rotate on a timer, pausing while you hover or focus the bar.',
+    6: 'Scroll the page: the CTA changes to match the section in view, cross-fading as it swaps. The Scroll Spy section below also has orientation and section-navigation modes.',
+    7: 'Each utility has its own color. Focus the chat field (blue) or open Search (teal) and the whole surface tints to match. Esc or clicking away closes things.',
+    8: 'A partner message (a satellite-radio free weekend) arrives after the Prompt delay and closes itself when the line along the top runs out. Hover or focus the bar to pause it.',
+    9: 'Watch the readout at the top count down. The Survey arrives after the Prompt delay, then the returning-visitor Quote animates over it — click Get My Quote to walk the four-step form. Dismiss the Quote and the Survey comes back.',
+    10: 'Privacy shows first and wins; the Survey and Quote are scheduled behind it. Accept the notice and the Quote follows after a short beat, then the Survey after that.',
   };
   const $flowNote = document.getElementById('flowNote');
 
@@ -2401,27 +2590,37 @@
         openPanel();
         break;
       case 5:
-        applyPreset('section-navigator');
+        applyPreset('message-cta');
         setRadio('message', 'rotating');
         state.messageMode = 'rotating';
-        setRadio('scrollspy', 'contextual');
-        state.scrollSpy = 'contextual';
         setupRotationTimer();
         renderPrimary();
-        openPanelSections([4, 7]); // Message Rotation, Scroll Spy
+        openPanelSections([4]); // Message Rotation
         openPanel();
         break;
       case 6:
+        applyPreset('scroll-spy');
+        // Start at the top so scrolling down walks through every section.
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        openPanelSections([7]); // Scroll Spy
+        openPanel();
+        break;
+      case 7:
         applyPreset('chat-search');
         openPanelSections([0]); // Content Presets — shows the "Chat & search" group
         openPanel();
         break;
-      case 7:
+      case 8:
+        applyPreset('timed-notice');
+        openPanelSections([9]); // Orchestration Demos — notice duration + trigger
+        openPanel();
+        break;
+      case 9:
         applyPreset('survey-quote-handoff');
         openPanelSections([9]); // Orchestration Demos — the Prompt delay control
         openPanel();
         break;
-      case 8:
+      case 10:
         applyPreset('stress-test');
         openPanelSections([8, 9]); // Busy/Overflow Edge Cases, Orchestration Demos
         openPanel();
@@ -2815,16 +3014,28 @@
         'Page and brand teams choose a presentation per placement without a new build.'),
     ],
     'flow-5': [
-      note('v2-context', SURFACE, 'The CTA follows the page',
+      note('rotation', SURFACE, 'Several messages, one slot',
         {
-          desktop: 'Scroll Spy swaps the CTA to match the section in view, cross-fading as it changes; messages rotate and pause on hover.',
-          mobile: "Scroll Spy swaps the CTA to match the section you've scrolled to, cross-fading as it changes; messages rotate on their own.",
+          desktop: 'Messages rotate through the same space on a timer, and pause while the visitor hovers over or focuses the bar.',
+          mobile: 'Messages rotate through the same space on a timer, and pause while the visitor is interacting with the bar.',
         },
-        'The footer stays relevant all the way down the page instead of repeating one message.'),
+        'Marketing can run several messages without adding a single element to the page.'),
+    ],
+    'scroll-spy': [
+      // Live: the wording tracks the section currently in view.
+      note('scroll-spy', SURFACE, 'The CTA follows the page',
+        (c) => `Right now: ${sectionLabel(state.activeSection)} → “${CONTEXTUAL_CTA[state.activeSection]}”. `
+          + `${c.mobile ? 'Scroll' : 'Scroll the page'} and the CTA swaps to match each section, cross-fading as it changes.`,
+        'The footer stays relevant all the way down the page instead of repeating one message. Scroll Spy also has orientation ("Viewing: Interior") and section-navigation modes.'),
+    ],
+    'timed-notice': [
+      note('notice-scenario', SURFACE, 'Ancillary messages that step aside',
+        'Partner and service messages (here, a satellite-radio free weekend) use the same surface at the lowest optional priority. If a survey or quote needs the space, the notice is dropped rather than queued.',
+        "Secondary messages still get seen, without competing with the site's priorities or piling up for later.", { kind: 'notice' }),
     ],
   };
 
-  const promptName = (kind) => (kind === 'quote' ? 'Quote prompt' : 'Survey');
+  const promptName = (kind) => ({ quote: 'Quote prompt', survey: 'Survey', notice: 'Timed notice' }[kind]);
 
   // Notes about what is happening right now, regardless of scenario.
   // These come first — they explain the thing the audience is looking at.
@@ -2844,8 +3055,10 @@
         'The privacy notice takes the bottom edge and the sticky surface lifts above it. Prompts that come due wait until it is answered.',
         'Compliance UI is never covered, and never competes with marketing for the same spot.', { kind: 'privacy' }));
     }
-    const held = state.pendingQuote ? 'quote' : state.pendingSurvey ? 'survey' : null;
-    const blocker = state.privacyActive ? 'the privacy notice' : (state.chatWindowOpen || state.activeInteraction) ? 'an active chat or search' : null;
+    const held = state.pendingQuote ? 'quote' : state.pendingSurvey ? 'survey' : state.pendingNotice ? 'notice' : null;
+    const blocker = state.privacyActive ? 'the privacy notice'
+      : (state.chatWindowOpen || state.activeInteraction) ? 'an active chat or search'
+        : held === 'notice' && (state.quoteActive || state.surveyActive) ? 'a higher-priority prompt' : null;
     if (held && blocker) {
       out.push(note(`held-${held}`, SURFACE, `${promptName(held)} is waiting its turn`,
         `It came due, but ${blocker} has priority. It will follow about a second after that clears.`,
@@ -2875,14 +3088,21 @@
           'It temporarily replaces the footer content (green dot, green button) and restores it when dismissed or sent.',
           'A lead-gen moment that uses the space already there, rather than a modal over the page.', { kind: 'quote' }));
     }
+    if (state.noticeActive) {
+      out.push(note('notice-active', '.primary-prompt--notice', 'Closes itself',
+        (c) => `Shown for ${noticeMs() / 1000} seconds — the line along the top of the bar shrinks to show the time left — then it closes on its own. `
+          + (c.mobile ? "The timer pauses while you're interacting with the bar or away from the page."
+            : 'Hovering or focusing the bar pauses it, and so does switching tabs.'),
+        'A low-stakes message gets its moment without anyone having to dismiss it, and never lingers.', { kind: 'notice' }));
+    }
     if (state.surveyActive) {
       out.push(note('survey-active', '.primary-prompt--survey', 'The survey takes over',
         'The survey briefly replaces the footer content (violet dot, violet button), then hands the space back.',
         'No separate survey popup competing with the footer — one layer, one thing at a time.', { kind: 'survey' }));
     }
     const coming = Object.keys(scheduled);
-    if (coming.length && !state.surveyActive && !state.quoteActive && !held) {
-      const kind = coming.includes('survey') ? 'survey' : 'quote';
+    if (coming.length && !state.surveyActive && !state.quoteActive && !state.noticeActive && !held) {
+      const kind = ['survey', 'quote', 'notice'].find((k) => coming.includes(k));
       out.push(note(`scheduled-${kind}`, SURFACE, `${promptName(kind)} on its way`,
         "It's scheduled rather than shown: it arrives after the Prompt delay (the Prototype Controls panel counts down), and waits its turn if something more important is showing.",
         'A prompt that waits a moment feels less like an ambush than one that fires on page load.', { kind }));
@@ -2891,6 +3111,7 @@
   }
 
   function currentNotesScenario() {
+    // Steps 4 (presentation) and 5 (rotation) change settings beyond their preset.
     return activeFlowStep === 4 || activeFlowStep === 5 ? `flow-${activeFlowStep}` : state.activePreset;
   }
 
@@ -2927,16 +3148,29 @@
     const notes = eligible.slice(0, maxNotes());
 
     const ctx = noteContext();
+    const resolved = notes.map((n) => ({ ...n, title: pick(n.title, ctx), how: pick(n.how, ctx), why: pick(n.why, ctx) }));
     // Includes the form factor and total, so wording and the "1 of 3"
     // counter refresh when either changes, not only when the notes do.
     const key = `${ctx.mobile}|${ctx.chatCollapsed}|${eligible.length}|${notes.map((n) => n.id).join('|')}`;
-    if (key === renderedNotesKey) return;
+    if (key === renderedNotesKey) {
+      // Same notes, but live copy (e.g. the section in view) may have moved
+      // on — update the text in place rather than re-animating the note.
+      resolved.forEach((n, i) => {
+        const el = $demoNotes.children[i];
+        if (!el) return;
+        el.querySelector('.demo-note__title').textContent = n.title;
+        const texts = el.querySelectorAll('.demo-note__text');
+        if (texts[0].textContent !== n.how) texts[0].textContent = n.how;
+        if (texts[1].textContent !== n.why) texts[1].textContent = n.why;
+      });
+      return;
+    }
     renderedNotesKey = key;
 
     $demoNotes.innerHTML = '';
-    notes.forEach((n, i) => {
+    resolved.forEach((n, i) => {
       const [howLabel, whyLabel] = n.labels || ['How it works', 'Why it matters'];
-      const title = pick(n.title, ctx);
+      const { title } = n;
       $demoNotes.append(h('div', {
         class: 'demo-note', role: 'note', 'aria-label': `Demo note: ${title}`,
         'data-id': n.id, 'data-anchor': n.anchor, 'data-kind': n.kind || 'neutral',
@@ -2957,8 +3191,8 @@
           onclick: () => dismissNotes([n.id], 'close'),
         })),
       h('p', { class: 'demo-note__title', text: title }),
-      h('p', { class: 'demo-note__row' }, h('span', { text: howLabel }), pick(n.how, ctx)),
-      h('p', { class: 'demo-note__row' }, h('span', { text: whyLabel }), pick(n.why, ctx)),
+      h('p', { class: 'demo-note__row' }, h('span', { class: 'demo-note__label', text: howLabel }), h('span', { class: 'demo-note__text', text: n.how })),
+      h('p', { class: 'demo-note__row' }, h('span', { class: 'demo-note__label', text: whyLabel }), h('span', { class: 'demo-note__text', text: n.why })),
       h('span', { class: 'demo-note__caret', 'aria-hidden': 'true' })));
     });
     if (notes.length && !notesRaf) notesRaf = requestAnimationFrame(positionDemoNotes);
