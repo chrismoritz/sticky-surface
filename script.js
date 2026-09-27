@@ -2598,6 +2598,7 @@
     else if (state.chatWindowOpen && $chatWindow.contains(document.activeElement)) closeChatWindow();
     else if (state.flyout) { closeFlyout(); log('flyout_closed', 'escape'); }
     else if (state.chatWindowOpen) closeChatWindow();
+    else if (demoNotesReady && visibleNoteIds().length) dismissNotes(visibleNoteIds(), 'escape');
   });
 
   // Clicking away dismisses prompts/results, like any popover. The quote
@@ -2667,10 +2668,29 @@
   const maxNotes = () => (document.documentElement.clientWidth <= 720 ? 1 : 2);
   const dismissedNotes = new Set();
   let notesScenario = null;
-  let renderedNotesKey = '';
+  // null (not '') means "force a redraw": '' is also the key of an empty
+  // list, and reusing it made the last note of every demo undismissable.
+  let renderedNotesKey = null;
   let notesRaf = null;
 
   const note = (id, anchor, title, how, why, extra = {}) => ({ id, anchor, title, how, why, ...extra });
+
+  // Copy can differ by form factor: a string is used everywhere, a
+  // { desktop, mobile } pair picks by width, and a function gets the context
+  // (for things tied to a specific breakpoint, like the chat field collapsing).
+  function noteContext() {
+    const vw = document.documentElement.clientWidth;
+    const input = document.querySelector('.chat-input-field input');
+    return {
+      mobile: vw <= 720,
+      chatCollapsed: input ? getComputedStyle(input).display === 'none' : vw <= 480,
+    };
+  }
+  const pick = (value, ctx) => {
+    if (typeof value === 'function') return value(ctx);
+    if (value && typeof value === 'object') return ctx.mobile ? value.mobile : value.desktop;
+    return value;
+  };
   const PROBLEM = { labels: ['How it works today', 'The problem'] };
 
   // Notes for the scenario itself — keyed by preset, or by Demo Flow step
@@ -2682,19 +2702,33 @@
         'Nothing coordinates it with other persistent UI, so every new need — chat, surveys, privacy — ships as one more floating layer.', PROBLEM),
       note('legacy-chat', '#legacyChatFab', 'A separate chat bubble',
         "The chat vendor's widget is pinned in the corner on its own, unaware the footer exists.",
-        'The two compete for attention and collide on small screens; neither can make room for the other.', PROBLEM),
+        {
+          desktop: 'The two compete for attention and collide on small screens; neither can make room for the other.',
+          mobile: 'On a phone they crowd the thumb zone at the bottom of the screen and cover page content; neither can make room for the other.',
+        }, PROBLEM),
     ],
     'tesla-inspired': [
       note('tesla-surface', SURFACE, 'One coordinated surface',
-        'The test-drive CTA and a chat entry point live in a single floating panel that sizes itself to its content.',
+        {
+          desktop: 'The test-drive CTA and a chat entry point live in a single floating panel that sizes itself to its content.',
+          mobile: "The test-drive CTA and a chat button share one bar that fits the phone's width, instead of a footer plus a separate bubble.",
+        },
         "One persistent element instead of two — chat becomes part of the brand's surface, not a vendor bubble on top of it."),
-      note('tesla-chat', '.chat-input-field', 'Chat entry point, not a chat window',
-        'Typing here hands off to a conventional corner chat window. On phones it collapses to a single chat button.',
-        'Visitors can start a question without hunting for a bubble, and the conversation still gets a full-size window.', { kind: 'chat' }),
+      note('tesla-chat', '.chat-input-field',
+        (c) => (c.chatCollapsed ? 'One tap to chat' : 'Chat entry point, not a chat window'),
+        (c) => (c.chatCollapsed
+          ? "On phones the inline field becomes a single chat button that opens the chat window straight away — there's no room to type in the bar."
+          : 'Typing here hands off to a conventional corner chat window. On phones it collapses to a single chat button.'),
+        (c) => (c.chatCollapsed
+          ? 'One tap gets a proper chat window, instead of a tiny field squeezed in beside the CTA.'
+          : 'Visitors can start a question without hunting for a bubble, and the conversation still gets a full-size window.'),
+        { kind: 'chat' }),
     ],
     'hvb-chat': [
       note('hvb', SURFACE, 'Commerce action + help, one row',
-        '"Search Inventory" is the primary action, with an "Ask Us" chat trigger beside it that opens the corner chat window.',
+        (c) => (c.chatCollapsed
+          ? '"Search Inventory" is the primary action, with an icon-only chat button beside it (the label drops on phones) that opens the chat window.'
+          : '"Search Inventory" is the primary action, with an "Ask Us" chat trigger beside it that opens the corner chat window.'),
         'Pairs the highest-intent action with a way to get help — the pattern most shopping pages need — without two separate widgets.'),
     ],
     'brand-story': [
@@ -2714,20 +2748,31 @@
     ],
     'section-navigator': [
       note('section-nav', '.primary-nav', 'Persistent section navigation',
-        'Scroll Spy highlights the section in view, and each link jumps to its section. When the bar gets crowded it collapses to the active section plus "More".',
+        {
+          desktop: 'Scroll Spy highlights the section in view, and each link jumps to its section. When the bar gets crowded it collapses to the active section plus "More".',
+          mobile: 'Scroll Spy highlights the section in view, and each link jumps to its section. On a phone the links scroll sideways within the bar; with Auto-collapse on, they reduce to the active section plus "More".',
+        },
         'Long model pages get wayfinding that follows the visitor, without a second sticky nav bar.'),
     ],
     'mobile-compact': [
       note('mobile', SURFACE, 'Composition changes by breakpoint',
-        'Shorter copy ("Test Drive") and an icon-only chat button in a compact pill.',
+        {
+          desktop: 'Shorter copy ("Test Drive") and an icon-only chat button in a compact pill. Narrow the window, or use Presenter Tools → iPhone preview, to see it at phone size.',
+          mobile: 'Shorter copy ("Test Drive") and an icon-only chat button in a compact pill — the arrangement designed for a screen this size.',
+        },
         'On phones the component switches to a reduced arrangement instead of shrinking the desktop one until it truncates.'),
     ],
     'chat-search': [
       note('cs-chat', '.chat-input-field', 'Chat is blue',
-        'Focus the field and the whole surface tints blue; the prompts panel and corner chat window use the same color.',
+        (c) => (c.chatCollapsed
+          ? 'Tap the chat button and the whole surface tints blue while the chat window — in the same blue — is open.'
+          : 'Focus the field and the whole surface tints blue; the prompts panel and corner chat window use the same color.'),
         'Visitors — and anyone reading analytics — can tell which utility is active at a glance.', { kind: 'chat' }),
       note('cs-search', '.search-trigger, .search-field', 'Search is teal',
-        'Opening search tints the surface teal and shows results in the panel above. Esc or clicking away closes it.',
+        {
+          desktop: 'Opening search tints the surface teal and shows results in the panel above. Esc or clicking away closes it.',
+          mobile: 'Tapping search tints the surface teal and shows results in the panel above; tap anywhere outside to close them.',
+        },
         'Two utilities share one surface without looking alike or fighting over position.', { kind: 'search' }),
     ],
     'survey-integration': [
@@ -2737,7 +2782,10 @@
     ],
     'quote-prompt': [
       note('quote-scenario', SURFACE, 'Returning-visitor quote prompt',
-        'Triggered when someone who clicked a CTA, used chat or search, or reached Shopping comes back to the tab.',
+        {
+          desktop: 'Triggered when someone who clicked a CTA, used chat or search, or reached Shopping comes back to the tab.',
+          mobile: 'Triggered when someone who tapped a CTA, used chat or search, or reached Shopping comes back to the page after switching apps or tabs.',
+        },
         'It targets intent the visitor already showed, instead of asking everyone for their details.', { kind: 'quote' }),
     ],
     'survey-quote-handoff': [
@@ -2752,17 +2800,26 @@
     ],
     'kitchen-sink': [
       note('kitchen', SURFACE, 'The busy edge case',
-        'Nav, chat, and search all at once. Floating and compact widen first; with Auto-collapse on, nav gives way before the utilities do.',
+        {
+          desktop: 'Nav, chat, and search all at once. Floating and compact widen first; with Auto-collapse on, nav gives way before the utilities do.',
+          mobile: "Nav, chat, and search all at once on a phone-width bar. There's no room left to widen, so with Auto-collapse on, nav reduces to the active section before the utilities shrink.",
+        },
         'A measured, priority-ordered fallback instead of content silently overflowing or overlapping.'),
     ],
     'flow-4': [
       note('presentation', SURFACE, 'Same content, different shell',
-        'Full-width bar, floating panel, or compact pill — each with opaque, translucent, or bordered finishes — all from one component.',
+        {
+          desktop: 'Full-width bar, floating panel, or compact pill — each with opaque, translucent, or bordered finishes — all from one component.',
+          mobile: 'Full-width bar, floating panel, or compact pill, each with opaque, translucent, or bordered finishes, all from one component. On a phone, floating and compact shrink to fit the screen, so the differences are subtler.',
+        },
         'Page and brand teams choose a presentation per placement without a new build.'),
     ],
     'flow-5': [
       note('v2-context', SURFACE, 'The CTA follows the page',
-        'Scroll Spy swaps the CTA to match the section in view, cross-fading as it changes; messages rotate and pause on hover.',
+        {
+          desktop: 'Scroll Spy swaps the CTA to match the section in view, cross-fading as it changes; messages rotate and pause on hover.',
+          mobile: "Scroll Spy swaps the CTA to match the section you've scrolled to, cross-fading as it changes; messages rotate on their own.",
+        },
         'The footer stays relevant all the way down the page instead of repeating one message.'),
     ],
   };
@@ -2776,7 +2833,10 @@
     if (!$chaosOverlay.hidden) {
       out.push(note('chaos', '.chaos-survey', 'Four widgets, no shared layer',
         'A promo footer, chat bubble, survey card, and cookie banner — each from a different team or vendor, each fixed-positioned with its own z-index.',
-        'Nothing arbitrates, so they bury each other. This is exactly what the shared persistent layer prevents.', PROBLEM));
+        {
+          desktop: 'Nothing arbitrates, so they bury each other. This is exactly what the shared persistent layer prevents.',
+          mobile: 'Nothing arbitrates, so on a phone they bury each other and most of the screen. This is exactly what the shared persistent layer prevents.',
+        }, PROBLEM));
       return out;
     }
     if (state.privacyActive) {
@@ -2793,12 +2853,18 @@
     }
     if (state.chatWindowOpen) {
       out.push(note('chat-window', '#chatWindow', 'Hand-off to a real chat window',
-        'The bar only holds the entry point; the conversation continues in a corner window that sits just above the bar. Esc closes it and returns focus.',
+        {
+          desktop: 'The bar only holds the entry point; the conversation continues in a corner window that sits just above the bar. Esc closes it and returns focus.',
+          mobile: 'The bar only holds the entry point; on a phone the conversation opens as a full-width chat panel just above the bar. Its × closes it.',
+        },
         "A full conversation doesn't get crammed into the footer, and the entry point stays visible.", { kind: 'chat' }));
     }
     if (state.flyout === 'quote' && !state.quoteSubmitted) {
       out.push(note('quote-form', '.quote-flow', 'The full form, in four short steps',
-        'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review. Optional fields are tucked behind one toggle, and progress is kept if the panel closes.',
+        {
+          desktop: 'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review. Optional fields are tucked behind one toggle, and progress is kept if the panel closes.',
+          mobile: 'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review — one short step per screen, with Back and Continue pinned at the bottom. Progress is kept if the panel closes.',
+        },
         "The same data as the long production form, with far less on screen at once — and nothing the page already knows is asked twice.", { kind: 'quote' }));
     } else if (state.quoteActive && state.flyout !== 'quote') {
       out.push(state.pendingSurvey
@@ -2818,7 +2884,7 @@
     if (coming.length && !state.surveyActive && !state.quoteActive && !held) {
       const kind = coming.includes('survey') ? 'survey' : 'quote';
       out.push(note(`scheduled-${kind}`, SURFACE, `${promptName(kind)} on its way`,
-        "It's scheduled rather than shown: it arrives after the Prompt delay (the panel counts down), and waits its turn if something more important is showing.",
+        "It's scheduled rather than shown: it arrives after the Prompt delay (the Prototype Controls panel counts down), and waits its turn if something more important is showing.",
         'A prompt that waits a moment feels less like an ambush than one that fires on page load.', { kind }));
     }
     return out;
@@ -2835,40 +2901,64 @@
     return r.width || r.height ? el : null;
   }
 
+  function dismissNotes(ids, how) {
+    ids.forEach((id) => dismissedNotes.add(id));
+    log('demo_note_dismissed', `${ids.join(', ')} (${how})`);
+    renderedNotesKey = null;
+    renderDemoNotes();
+  }
+
+  function visibleNoteIds() {
+    return [...$demoNotes.children].map((el) => el.dataset.id);
+  }
+
   function renderDemoNotes() {
     if (!demoNotesReady) return;
     const scenario = currentNotesScenario();
     if (scenario !== notesScenario) { notesScenario = scenario; dismissedNotes.clear(); }
 
-    let notes = [];
+    let eligible = [];
     const hideForOverlay = $frameOverlay && !$frameOverlay.hidden;
     if ($demoNotesToggle.checked && !embedded && !hideForOverlay) {
       const seen = new Set();
-      notes = [...situationalNotes(), ...(SCENARIO_NOTES[scenario] || [])]
-        .filter((n) => !seen.has(n.id) && seen.add(n.id) && !dismissedNotes.has(n.id) && anchorFor(n))
-        .slice(0, maxNotes());
+      eligible = [...situationalNotes(), ...(SCENARIO_NOTES[scenario] || [])]
+        .filter((n) => !seen.has(n.id) && seen.add(n.id) && !dismissedNotes.has(n.id) && anchorFor(n));
     }
+    const notes = eligible.slice(0, maxNotes());
 
-    const key = notes.map((n) => n.id).join('|');
+    const ctx = noteContext();
+    // Includes the form factor and total, so wording and the "1 of 3"
+    // counter refresh when either changes, not only when the notes do.
+    const key = `${ctx.mobile}|${ctx.chatCollapsed}|${eligible.length}|${notes.map((n) => n.id).join('|')}`;
     if (key === renderedNotesKey) return;
     renderedNotesKey = key;
 
     $demoNotes.innerHTML = '';
-    notes.forEach((n) => {
+    notes.forEach((n, i) => {
       const [howLabel, whyLabel] = n.labels || ['How it works', 'Why it matters'];
+      const title = pick(n.title, ctx);
       $demoNotes.append(h('div', {
-        class: 'demo-note', role: 'note', 'aria-label': `Demo note: ${n.title}`,
+        class: 'demo-note', role: 'note', 'aria-label': `Demo note: ${title}`,
         'data-id': n.id, 'data-anchor': n.anchor, 'data-kind': n.kind || 'neutral',
       },
       h('div', { class: 'demo-note__head' },
-        h('span', { class: 'demo-note__kicker', text: 'Demo note' }),
+        h('span', { class: 'demo-note__kicker', text: eligible.length > 1 ? `Demo note · ${i + 1} of ${eligible.length}` : 'Demo note' }),
         h('button', {
-          type: 'button', class: 'demo-note__close', 'aria-label': `Hide note: ${n.title}`, text: '×',
-          onclick: () => { dismissedNotes.add(n.id); renderedNotesKey = ''; renderDemoNotes(); },
+          type: 'button', class: 'demo-note__hide-all', text: 'Hide all',
+          'aria-label': 'Hide all demo notes (turn them back on under Demo Flow)',
+          onclick: () => {
+            $demoNotesToggle.checked = false;
+            $demoNotesToggle.dispatchEvent(new Event('change'));
+          },
+        }),
+        h('button', {
+          type: 'button', class: 'demo-note__close', text: '×',
+          'aria-label': eligible.length > notes.length ? `Hide this note and show the next: ${title}` : `Hide note: ${title}`,
+          onclick: () => dismissNotes([n.id], 'close'),
         })),
-      h('p', { class: 'demo-note__title', text: n.title }),
-      h('p', { class: 'demo-note__row' }, h('span', { text: howLabel }), n.how),
-      h('p', { class: 'demo-note__row' }, h('span', { text: whyLabel }), n.why),
+      h('p', { class: 'demo-note__title', text: title }),
+      h('p', { class: 'demo-note__row' }, h('span', { text: howLabel }), pick(n.how, ctx)),
+      h('p', { class: 'demo-note__row' }, h('span', { text: whyLabel }), pick(n.why, ctx)),
       h('span', { class: 'demo-note__caret', 'aria-hidden': 'true' })));
     });
     if (notes.length && !notesRaf) notesRaf = requestAnimationFrame(positionDemoNotes);
@@ -2889,7 +2979,7 @@
 
     // Things a note must not cover: the sticky surface, the privacy notice,
     // and the chat window — unless the note is about that very thing.
-    const obstacleEls = [$surface, $privacyBar, $chatWindow].filter((el) => !el.hidden);
+    const obstacleEls = [$surface, $privacyBar, $chatWindow, $panelToggle].filter((el) => !el.hidden);
     const placed = [];
 
     els.forEach((el) => {
@@ -2962,7 +3052,8 @@
     notesRaf = requestAnimationFrame(positionDemoNotes);
   }
 
-  window.addEventListener('resize', () => { renderedNotesKey = ''; renderDemoNotes(); });
+  // Crossing the phone breakpoint changes both how many notes fit and their wording.
+  window.addEventListener('resize', () => { renderedNotesKey = null; renderDemoNotes(); });
 
   $demoNotesToggle.addEventListener('change', () => {
     dismissedNotes.clear();

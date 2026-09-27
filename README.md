@@ -161,11 +161,20 @@ comparison: how it works today, and the problem). They follow live state
 rather than just the preset: in the Intercept Prompts step the note changes
 from "Survey on its way" to "The survey takes over" to "Quote outranks
 Survey" as each moment lands, and opening the quote form, the chat window,
-or the privacy notice brings up a note about that. At most two show at
-once on desktop and one on phones (dismiss one with × to see the next);
-they stay clear of the sticky bar, each other, and the open control panel,
-and track their anchors through every animation. Turn them off with
-**Show demo notes** under the Demo Flow buttons. They're styled as
+or the privacy notice brings up a note about that.
+
+The wording follows the form factor being viewed: on a phone, notes
+describe what's actually on a phone screen — the chat field collapsed to a
+single chat button, "tap outside" instead of Esc or clicking away, a
+full-width chat panel instead of a corner window, no hover — and switch
+back when the window is widened. At most two notes show at once on desktop
+and one on phones; a "1 of 3" counter shows when more are queued. Every
+note can be dismissed with its ×, which reveals the next; **Hide all** in
+any note turns them off (turn them back on with **Show demo notes** under
+the Demo Flow buttons), and on desktop Escape dismisses the visible notes
+once there's nothing else for it to close. Notes stay clear of the sticky
+bar, each other, the open control panel, and the Prototype Controls pill,
+and track their anchors through every animation. They're styled as
 prototype chrome and never appear in the device-frame preview.
 
 **Content Presets** are grouped by what they demonstrate — *Baseline*,
