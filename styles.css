@@ -553,6 +553,43 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   .ticker__track { animation: none; }
 }
 
+/* Rotating message roll (script.js rotateMessage): the outgoing line is
+   laid over the incoming one while the pair animates, then both are
+   replaced by plain text again. */
+.is-rolling { position: relative; text-overflow: clip; }
+.msg-roll__in { display: inline-block; will-change: transform, opacity, filter; }
+.msg-roll__out {
+  position: absolute; left: 0; top: 0;
+  white-space: nowrap; pointer-events: none;
+  will-change: transform, opacity, filter;
+}
+
+/* Border trace on each message change: a short highlight runs once around
+   the inside of the surface's border. The ring is a conic gradient masked
+   down to the border's width; --trace-angle is registered so it animates. */
+@property --trace-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.sticky__surface::after {
+  content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--trace-angle),
+    transparent 0turn, transparent .62turn,
+    color-mix(in srgb, var(--ink) 45%, transparent) .82turn,
+    var(--ink) .9turn, transparent 1turn);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0;
+}
+.sticky__surface.is-tracing::after { animation: borderTrace 1150ms cubic-bezier(.45,0,.3,1) both; }
+@keyframes borderTrace {
+  0% { --trace-angle: 0deg; opacity: 0; }
+  18% { opacity: .7; }
+  75% { opacity: .7; }
+  100% { --trace-angle: 360deg; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .sticky__surface.is-tracing::after { animation: none; } }
+
 /* Manual rotator */
 .rotator { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .rotator__msg { font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

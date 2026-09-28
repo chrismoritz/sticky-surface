@@ -140,8 +140,10 @@ you pick a preset by hand.
    shows up: on load, after 10% or 25% of the page, past the hero, or at a
    section. Picking a trigger returns to the top so you can scroll down and
    watch it enter, with a meter showing how close you are.
-5. **Message Rotation (V2)** — several messages share one slot and rotate
-   on a timer, pausing while the bar is hovered or focused.
+5. **Message Rotation (V2)** — several messages share one slot in the
+   floating panel and rotate on a timer: each one rolls into place while
+   the panel's edge glides to its new length and a highlight traces its
+   border. Rotation pauses while the bar is hovered or focused.
 6. **Scroll Spy: Contextual CTA (V2)** — the Scroll Spy preset, starting
    from the top of the page: scroll down and the CTA changes (and
    cross-fades) to match each section — Design, Interior, Technology,
@@ -550,6 +552,31 @@ already ended — e.g. the surface staying quote-green after its "Request
 received" confirmation auto-closed. Both `openFlyout()`/`closeFlyout()`
 and the two blur handlers now refresh the readout directly instead of
 relying on an event happening to call `log()` afterward.
+
+### Rotating messages roll, and the border follows
+
+A message change in the rotation used to be a hard cut: the text swapped
+and, since the surface sizes to its content, the panel's edge and the CTA
+jumped. Now each change is one coordinated motion:
+
+- **The message rolls.** The old line lifts away and blurs out while the new
+  one rises into place, overlapping slightly, so there's never an empty bar.
+  Only the message moves; the CTA stays put.
+- **The edge glides.** The message's width animates between the two
+  lengths, so a floating or compact panel's border (and, full-width, the
+  CTA's position) follows smoothly. When the new message is longer the edge
+  leads, so the text is never clipped as it arrives; when it's shorter the
+  edge waits for the old line to clear.
+- **The border traces the change.** A soft highlight runs once around the
+  inside of the surface's border, drawn inside the card so it reads over
+  the dark hero and the white page alike.
+- **Manual ‹ ›** uses the same roll, and the button keeps focus now, so
+  keyboard users can step through messages without losing their place.
+  Rapid clicks settle the roll in flight and start the next one.
+
+The layout's truncation and expansion checks wait for a roll to finish, so
+a half-glided message is never mistaken for one that doesn't fit. With
+reduced motion, rotation stays off and the first message simply shows.
 
 ### Animation timing, and a more discrete minimize/restore
 

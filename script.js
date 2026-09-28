@@ -849,8 +849,7 @@
       prev.setAttribute('aria-label', 'Previous message');
       prev.textContent = '‹';
       prev.addEventListener('click', () => {
-        state.rotatorIndex = (state.rotatorIndex - 1 + ROTATING_MESSAGES.length) % ROTATING_MESSAGES.length;
-        renderPrimary();
+        rotateMessage(-1);
       });
 
       const msg = document.createElement('p');
@@ -863,8 +862,7 @@
       next.setAttribute('aria-label', 'Next message');
       next.textContent = '›';
       next.addEventListener('click', () => {
-        state.rotatorIndex = (state.rotatorIndex + 1) % ROTATING_MESSAGES.length;
-        renderPrimary();
+        rotateMessage(1);
       });
 
       wrap.append(prev, msg, next);
@@ -908,9 +906,89 @@
     if (state.messageMode !== 'rotating') return;
     rotationTimer = setInterval(() => {
       if (state.rotationPaused || state.activeInteraction) return;
-      state.rotatorIndex = (state.rotatorIndex + 1) % ROTATING_MESSAGES.length;
-      renderPrimary();
+      rotateMessage(1);
     }, 4200);
+  }
+
+  // Rolls the message to the next (or previous) one in place: the old line
+  // lifts away as the new one rises in, and the message's width glides
+  // between the two lengths, so the surface's edge and border follow it
+  // instead of jumping — the border also deepens briefly to mark the change.
+  // Only the message moves; the CTA (and a focused ‹ › button) stay put.
+  const ROLL_MS = 820;
+  const ROLL_EASE = 'cubic-bezier(.22,.8,.22,1)';
+  const GLIDE_EASE = 'cubic-bezier(.65,0,.35,1)'; // ease-in-out: the edge starts and lands softly
+  let rollAnims = [];
+  let rollToken = 0;
+
+  function rotateMessage(delta) {
+    const n = ROTATING_MESSAGES.length;
+    state.rotatorIndex = (state.rotatorIndex + delta + n) % n;
+    finishRoll();
+    const el = $primary.querySelector('.primary-message, .rotator__msg');
+    if (!el || prefersReducedMotion || $sticky.dataset.visible !== 'true' || swapTimer) {
+      renderPrimary();
+      evaluateCrowding();
+      return;
+    }
+    const text = ROTATING_MESSAGES[state.rotatorIndex];
+    const oldText = el.textContent;
+    const firstW = el.getBoundingClientRect().width;
+    const incoming = h('span', { class: 'msg-roll__in', text });
+    el.replaceChildren(incoming);
+    el.classList.add('is-rolling');
+    const lastW = el.getBoundingClientRect().width;
+    const outgoing = h('span', { class: 'msg-roll__out', 'aria-hidden': 'true', text: oldText });
+    el.append(outgoing);
+
+    // Growing: the edge leads, so the longer line is never clipped as it
+    // arrives. Shrinking: the edge waits for the old line to clear first.
+    const grows = lastW >= firstW;
+    const glide = grows
+      ? { duration: ROLL_MS * 0.7, easing: GLIDE_EASE }
+      : { duration: ROLL_MS * 0.72, delay: ROLL_MS * 0.28, easing: GLIDE_EASE, fill: 'backwards' };
+    const token = ++rollToken;
+    rollAnims = [
+      el.animate([{ width: `${firstW}px` }, { width: `${lastW}px` }], glide),
+      outgoing.animate(
+        [{ opacity: 1, transform: 'translateY(0)', filter: 'blur(0)' }, { opacity: 0, transform: 'translateY(-65%)', filter: 'blur(3px)' }],
+        { duration: ROLL_MS * 0.42, easing: 'cubic-bezier(.4,0,.8,.4)', fill: 'forwards' }),
+      incoming.animate(
+        [{ opacity: 0, transform: 'translateY(65%)', filter: 'blur(3px)' }, { opacity: 1, transform: 'translateY(0)', filter: 'blur(0)' }],
+        { duration: ROLL_MS * 0.66, delay: ROLL_MS * 0.34, easing: ROLL_EASE, fill: 'backwards' }),
+    ];
+    traceBorder();
+    Promise.all(rollAnims.slice(0, 3).map((a) => a.finished)).then(() => {
+      if (token === rollToken) finishRoll();
+    }, () => {});
+  }
+
+  // A soft highlight runs once around the inside of the surface's border
+  // as the message changes (CSS: .is-tracing). Drawn inside the card, so
+  // it reads over the dark hero and the white page alike.
+  function traceBorder() {
+    $surface.classList.remove('is-tracing');
+    void $surface.offsetWidth;
+    $surface.classList.add('is-tracing');
+  }
+  // On $sticky ($surface is declared further down); the event bubbles up.
+  $sticky.addEventListener('animationend', (e) => {
+    if (e.animationName === 'borderTrace') e.target.classList.remove('is-tracing');
+  });
+
+  // Settles a roll still in flight (a new one starting, or the roll ending):
+  // back to plain text, so ellipsis and crowding checks behave as usual.
+  function finishRoll() {
+    if (!rollAnims.length) return;
+    rollAnims.forEach((a) => a.cancel());
+    rollAnims = [];
+    rollToken++;
+    const el = $primary.querySelector('.is-rolling');
+    if (el) {
+      el.textContent = el.querySelector('.msg-roll__in')?.textContent || el.textContent;
+      el.classList.remove('is-rolling');
+    }
+    evaluateCrowding();
   }
 
   $sticky.addEventListener('mouseenter', () => { state.rotationPaused = true; pauseNotice('hover'); });
@@ -1851,6 +1929,9 @@
 
   function evaluateCrowding() {
     requestAnimationFrame(() => {
+      // Mid-roll the message is between two widths and would read as
+      // truncated; finishRoll() runs this again once it has settled.
+      if (rollAnims.length) return;
       // Opportunistic expansion (floating and compact only — full-width
       // already spans the viewport, nothing to expand into): let the panel
       // take more width before ever hiding content. Always on, independent
@@ -2665,7 +2746,7 @@
     2: 'One coordinated surface: the test-drive CTA and an inline "Ask a question" field. Send a question to hand off to the corner chat window.',
     3: 'Same component, new content every time — click through the presets below.',
     4: 'Same content, different shell. Use the "Try a look" switcher on the page to change the shape, finish, and entrance (or Next look to step through six), and Appears to set when the bar shows up as you scroll.',
-    5: 'Several messages share one slot and rotate on a timer, pausing while you hover or focus the bar.',
+    5: 'Several messages share one slot and rotate on a timer: each rolls into place while the panel\'s edge glides to fit it. Rotation pauses while you hover or focus the bar.',
     6: 'Scroll the page: the CTA changes to match the section in view, cross-fading as it swaps.',
     7: 'Section links in the bar: click one to jump straight to that part of the page. The highlight follows as you scroll.',
     8: 'Each utility has its own color. Focus the chat field (blue) or open Search (teal) and the whole surface tints to match. Esc or clicking away closes things.',
@@ -2738,6 +2819,13 @@
         break;
       case 5:
         applyPreset('message-cta');
+        // Floating, so the card's border hugs the message and visibly
+        // glides to each new length.
+        setRadio('presentation', 'floating');
+        state.presentation = 'floating';
+        setRadio('surface', 'opaque');
+        state.surface = 'opaque';
+        applyVisibility();
         setRadio('message', 'rotating');
         state.messageMode = 'rotating';
         setupRotationTimer();
@@ -3412,8 +3500,8 @@
     'flow-5': [
       note('rotation', SURFACE, 'Several messages, one slot',
         {
-          desktop: 'Messages rotate through the same space on a timer, and pause while the visitor hovers over or focuses the bar.',
-          mobile: 'Messages rotate through the same space on a timer, and pause while the visitor is interacting with the bar.',
+          desktop: 'Messages rotate through the same space on a timer. Each one rolls into place while the panel\'s edge glides to its new length, so nothing jumps. Rotation pauses while the visitor hovers over or focuses the bar.',
+          mobile: 'Messages rotate through the same space on a timer. Each one rolls into place while the panel\'s edge glides to its new length, so nothing jumps. Rotation pauses while the visitor is interacting with the bar.',
         },
         'Marketing can run several messages without adding a single element to the page.'),
     ],
