@@ -343,11 +343,15 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .sticky[data-visible="true"] { display: flex; }
 .sticky.enter-fade { animation: fadeIn var(--dur-med) var(--ease); }
 .sticky.enter-slide { animation: slideUp var(--dur-med) var(--ease); }
+/* Rises from below the viewport edge: the most noticeable entrance, for
+   placements that should announce themselves. */
+.sticky.enter-rise { animation: riseIn calc(var(--dur-med) * 1.6) cubic-bezier(.2, .8, .2, 1); }
 @media (prefers-reduced-motion: reduce) {
-  .sticky.enter-fade, .sticky.enter-slide, .sticky.is-entering { animation: none !important; }
+  .sticky.enter-fade, .sticky.enter-slide, .sticky.enter-rise, .sticky.is-entering { animation: none !important; }
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes riseIn { from { transform: translateY(calc(100% + 32px)); } to { transform: translateY(0); } }
 
 /* -------- Minimize / restore --------
    Two grid-rows collapse wrappers (the well-supported 1fr/0fr technique for
@@ -1106,6 +1110,129 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
    Above the chat window and chaos comparison, below the control panel.
    ========================================================================== */
 .demo-notes { position: fixed; inset: 0; z-index: 640; pointer-events: none; }
+
+/* -------- "Try a look" switcher (Demo Flow step 4) --------
+   Prototype chrome, like the demo notes: dark, monospace, never in the
+   embedded preview. Sits top right, clear of the Prototype Controls pill
+   and the open panel. */
+.look-switcher {
+  position: fixed; top: 74px; right: 18px; z-index: 645;
+  width: 372px; max-width: calc(100vw - 36px);
+  background: #131418; color: #e7e7ea;
+  border: 1px solid #2c2d34; border-top: 3px solid #5eff9a;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 14px 40px rgba(0,0,0,.35);
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  font-size: .72rem;
+  animation: demoNoteIn var(--dur-med) var(--ease) both;
+}
+.look-switcher[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .look-switcher { animation: none; } }
+.look-switcher__head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; }
+.look-switcher__title { margin: 0 auto 0 0; font-size: .66rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #ffb454; }
+.look-switcher__next {
+  font: inherit; font-weight: 600; cursor: pointer;
+  min-height: 32px; padding: 0 12px; border-radius: var(--radius-pill);
+  background: #5eff9a; color: #0d2a17; border: none;
+}
+.look-switcher__next:hover { background: #8dffb8; }
+.look-switcher__toggle {
+  width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
+  background: none; color: #8e8f97; font-size: .9rem;
+}
+.look-switcher__toggle:hover { background: #23242b; color: #fff; }
+.look-switcher__toggle span { display: inline-block; transition: transform var(--dur-fast) var(--ease); }
+.look-switcher__toggle[aria-expanded="false"] span { transform: rotate(-90deg); }
+.look-switcher__body { padding: 0 12px 12px; display: grid; gap: 8px; }
+.look-switcher__body[hidden] { display: none; }
+.look-switcher__counter { margin: 0 0 2px; color: #a9aab2; font-size: .68rem; }
+
+.look-row {
+  margin: 0; padding: 0; border: none; min-width: 0;
+  display: grid; grid-template-columns: 70px 1fr auto; align-items: center; gap: 8px;
+}
+.look-row legend { float: left; padding: 0; color: #8e8f97; font-size: .64rem; letter-spacing: .06em; text-transform: uppercase; }
+.look-seg { display: flex; background: #1d1e24; border: 1px solid #2c2d34; border-radius: 8px; padding: 2px; gap: 2px; min-width: 0; }
+.look-seg label { flex: 1 1 0; min-width: 0; position: relative; }
+.look-seg input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.look-seg span {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  min-height: 32px; padding: 0 4px; border-radius: 6px;
+  color: #c9cad1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.look-seg label:hover span { background: #26272e; color: #fff; }
+.look-seg input:checked + span { background: #e7e7ea; color: #131418; font-weight: 600; }
+.look-seg input:focus-visible + span { outline: 2px solid #5eff9a; outline-offset: 1px; }
+.look-replay {
+  width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+  background: #1d1e24; color: #e7e7ea; border: 1px solid #2c2d34; font-size: 1rem;
+}
+.look-replay:hover { background: #26272e; }
+.look-row--trigger { grid-template-columns: 1fr; gap: 4px; }
+.look-row--trigger .look-seg span { font-size: .66rem; }
+
+.look-status { display: grid; gap: 6px; padding: 8px 10px; border-radius: 6px; background: #1d1e24; }
+.look-status__text { margin: 0; line-height: 1.45; color: #c9cad1; }
+.look-status__meter { height: 3px; border-radius: 2px; background: #2c2d34; overflow: hidden; }
+.look-status__meter span {
+  display: block; height: 100%; background: #ffb454; transform-origin: left center; transform: scaleX(0);
+  transition: transform 120ms linear;
+}
+.look-status[data-state="shown"] .look-status__meter span { background: #5eff9a; }
+.look-status[data-state="always"] .look-status__meter { display: none; }
+.look-status__top {
+  justify-self: start; font: inherit; cursor: pointer; min-height: 32px; padding: 0 10px;
+  background: none; color: #5eff9a; border: 1px solid #2c5a3d; border-radius: var(--radius-pill);
+}
+.look-status__top:hover { background: #17301f; }
+.look-status:not([data-state="shown"]) .look-status__top { display: none; }
+
+/* -------- Scroll hint --------
+   Sits where the sticky surface will appear, until it does. */
+.scroll-cue {
+  /* Centered with auto margins, not a transform: the entrance animation
+     animates transform. */
+  position: fixed; left: 0; right: 0; bottom: 20px; z-index: 646;
+  margin: 0 auto;
+  width: min(460px, calc(100vw - 24px));
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 8px 12px 14px;
+  background: #131418; color: #e7e7ea;
+  border: 1px solid #2c2d34; border-left: 3px solid #ffb454;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 14px 40px rgba(0,0,0,.35);
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  font-size: .72rem;
+  animation: demoNoteIn var(--dur-med) var(--ease) both;
+}
+.scroll-cue[hidden] { display: none; }
+.scroll-cue__arrow {
+  flex: none; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: #ffb454; color: #131418; font-weight: 700; font-size: .9rem;
+  animation: scrollCueNudge 1.4s ease-in-out infinite;
+}
+@keyframes scrollCueNudge { 0%, 100% { transform: translateY(-2px); } 50% { transform: translateY(3px); } }
+@media (prefers-reduced-motion: reduce) { .scroll-cue, .scroll-cue__arrow { animation: none; } }
+.scroll-cue__body { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.scroll-cue__title { margin: 0; font-weight: 600; color: #fff; font-size: .78rem; }
+.scroll-cue__text { margin: 0; line-height: 1.5; color: #c9cad1; }
+.scroll-cue__meter { height: 3px; margin-top: 4px; border-radius: 2px; background: #2c2d34; overflow: hidden; }
+.scroll-cue__meter span { display: block; height: 100%; background: #ffb454; transform-origin: left center; transform: scaleX(0); transition: transform 120ms linear; }
+.scroll-cue__close {
+  flex: none; width: 36px; height: 36px; margin: -6px 0 0; border-radius: 50%;
+  background: none; border: none; color: #8e8f97; font-size: 1.1rem; cursor: pointer;
+}
+.scroll-cue__close:hover { background: #23242b; color: #fff; }
+
+/* Phones: full width, just below the Prototype Controls pill. */
+@media (max-width: 720px) {
+  .look-switcher { top: 124px; right: 10px; left: 10px; width: auto; max-width: none; }
+  .look-row { grid-template-columns: 58px 1fr auto; }
+  .look-row--trigger { grid-template-columns: 1fr; }
+  .look-switcher__body { gap: 6px; }
+}
 .demo-note {
   position: absolute; left: 0; top: 0;
   width: min(320px, calc(100vw - 24px));

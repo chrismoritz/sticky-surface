@@ -131,9 +131,15 @@ you pick a preset by hand.
 3. **Flexibility** — jump into the preset list and click through Search
    Inventory, Brand Story (F1), and the various Chat/Search entry points.
    Same component, new content every time.
-4. **Presentation** — toggle Full-width / Floating / Compact and the three
-   surface finishes (opaque, translucent/blur, bordered) to show the same
-   component adapting its shell.
+4. **Presentation** — a "Try a look" switcher appears on the page (top
+   right; under the Prototype Controls pill on phones). **Next look** steps
+   through six curated combinations of shape (full-width / floating /
+   compact), finish (opaque / glass / bordered) and entrance (fade / slide /
+   rise), replaying the entrance each time; each row can also be set
+   directly, and ↻ replays the entrance. **Appears** sets when the bar
+   shows up: on load, after 10% or 25% of the page, past the hero, or at a
+   section. Picking a trigger returns to the top so you can scroll down and
+   watch it enter, with a meter showing how close you are.
 5. **Message Rotation (V2)** — several messages share one slot and rotate
    on a timer, pausing while the bar is hovered or focused.
 6. **Scroll Spy: Contextual CTA (V2)** — the Scroll Spy preset, starting
@@ -580,6 +586,44 @@ triggered visibility modes (10%/25% scroll, after hero, on section reach)
 are still there in the panel for anyone who wants to show that behavior
 specifically — the default just isn't gating the rest of the demo on it
 anymore.
+
+### Trying looks and trigger points without the panel
+
+Demo Flow step 4 adds an on-page **"Try a look"** switcher, so a viewer can
+flip the same content through every presentation option without opening
+the panel's sections. It drives the panel's own controls rather than
+keeping a second copy of the settings, so the two always agree and every
+change lands in the Event Log the same way.
+
+- **Next look** walks six combinations, each differing from the last in
+  shape, finish and entrance, so every click is a visible change. The
+  counter reads "Look 3 of 6: …", or "Custom: …" once a row has been set by
+  hand.
+- **Entrance** now has a fourth option, **Rise**: the surface rises from
+  below the viewport edge, the most noticeable entrance, for placements
+  that should announce themselves. **↻** takes the bar off screen for a
+  beat and brings it back, so even **None** (it simply appears) can be
+  compared.
+- **Appears** sets the trigger point. Choosing one scrolls back to the top;
+  the switcher then shows "Hidden until you scroll past the hero image: 40%
+  there" with a meter, and "Appeared once you scrolled …" plus a **Back to
+  top** button once it fires.
+- Leaving step 4 resets the trigger to Always visible, so no later step
+  starts with a hidden bar.
+
+### A hint when the surface is waiting on a scroll
+
+Whenever the surface is set to wait for a scroll trigger and hasn't
+appeared yet (from the switcher, or the panel's **Show when**), a hint sits
+at the bottom of the screen, where the bar will appear: "Scroll down to
+see the sticky surface", which trigger it's waiting for, how far along the
+visitor is, and how to show it right away (the switcher's Always option in
+step 4; otherwise Prototype Controls → Visibility & Entrance → Show when).
+It disappears as soon as the bar does and comes back if you scroll back
+above the trigger. Dismissing it with × holds until the trigger changes.
+It's prototype chrome: it never appears in the embedded preview, demo notes
+steer clear of it, and on phones it waits while the control panel covers the
+screen.
 
 ### The chat input hands off to a real chat window
 

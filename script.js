@@ -533,11 +533,12 @@
   // so the CSS animation restarts. Used both when the component newly
   // becomes visible and when a preset changes while it's already visible —
   // replaying the entrance is a deliberate cue that the content changed.
+  const ENTRANCES = ['fade', 'slide', 'rise'];
   function triggerEntrance() {
-    $sticky.classList.remove('enter-fade', 'enter-slide');
+    $sticky.classList.remove('enter-fade', 'enter-slide', 'enter-rise');
     if (!prefersReducedMotion && state.entrance !== 'none') {
       void $sticky.offsetWidth;
-      $sticky.classList.add(state.entrance === 'slide' ? 'enter-slide' : 'enter-fade');
+      $sticky.classList.add(`enter-${ENTRANCES.includes(state.entrance) ? state.entrance : 'fade'}`);
     }
   }
 
@@ -2404,7 +2405,10 @@
     if (shouldShow !== state.scrollVisible) {
       state.scrollVisible = shouldShow;
       applyVisibility();
+      renderDemoNotes();
     }
+    syncLookStatus();
+    syncScrollCue();
 
     // Scroll spy: find the section most in view
     let current = state.activeSection;
@@ -2621,6 +2625,7 @@
 
   document.getElementById('entranceSelect').addEventListener('change', (e) => {
     state.entrance = e.target.value;
+    log('entrance_changed', state.entrance);
   });
 
   function applyAnimSpeed(value) {
@@ -2659,7 +2664,7 @@
     1: 'The problem: a promo footer and an unrelated chat bubble, each built separately, competing for the same corner.',
     2: 'One coordinated surface: the test-drive CTA and an inline "Ask a question" field. Send a question to hand off to the corner chat window.',
     3: 'Same component, new content every time — click through the presets below.',
-    4: 'Same content, different shell — try Full-width / Floating / Compact and the surface finishes.',
+    4: 'Same content, different shell. Use the "Try a look" switcher on the page to change the shape, finish, and entrance (or Next look to step through six), and Appears to set when the bar shows up as you scroll.',
     5: 'Several messages share one slot and rotate on a timer, pausing while you hover or focus the bar.',
     6: 'Scroll the page: the CTA changes to match the section in view, cross-fading as it swaps.',
     7: 'Section links in the bar: click one to jump straight to that part of the page. The highlight follows as you scroll.',
@@ -2681,6 +2686,7 @@
     });
     $flowNote.hidden = !step;
     $flowNote.textContent = step ? FLOW_NOTES[step] : '';
+    showLookSwitcher(step === 4);
     renderDemoNotes();
   }
 
@@ -2693,6 +2699,11 @@
       state.messageMode = 'static';
       setRadio('message', 'static');
     }
+    // Same for step 4's scroll triggers: every other step shows the bar
+    // straight away, so a "wait until 25% scroll" left over from step 4
+    // would hide the very thing the next step is about.
+    cancelLookReplay();
+    if (state.visibility !== 'always') setVisibilityMode('always');
     switch (step) {
       case 1:
         applyPreset('current-state');
@@ -2715,13 +2726,15 @@
         announce('Try the preset buttons to swap Search Inventory, F1, Chat, or Search.');
         break;
       case 4:
-        setRadio('presentation', 'compact');
-        state.presentation = 'compact';
+        // Arriving straight from Current State, there's no surface to restyle yet.
+        if (state.legacyMode) applyPreset('brand-story');
         renderPrimary();
         setupRotationTimer();
-        applyVisibility();
-        openPanelSections([1]); // Presentation
-        openPanel();
+        openPanelSections([1, 2]); // Presentation, Visibility & Entrance
+        // The on-page "Try a look" switcher does the work here; the panel
+        // stays open beside it only where there's room for both.
+        if (document.documentElement.clientWidth >= 800) openPanel(); else closePanel();
+        applyLook(0);
         break;
       case 5:
         applyPreset('message-cta');
@@ -2767,6 +2780,237 @@
     setActiveFlowStep(step);
   }
 
+  /* ------------------------------------------------------------------ *
+   * "Try a look" switcher (Demo Flow step 4)
+   *
+   * An on-page shortcut to the panel's Presentation and Visibility &
+   * Entrance controls, so the same content can be flipped through every
+   * shell, finish, entrance and trigger point in a click. It drives the
+   * panel's own inputs (so both stay in sync and everything is logged the
+   * same way) rather than keeping a second copy of the state.
+   * ------------------------------------------------------------------ */
+
+  // `var` (hoisted): evaluateScroll() and syncControlsFromState() call in
+  // here before this part of the file has run.
+  var lookReady = false;
+  var lookReplayTimer = null;
+  const $look = document.getElementById('lookSwitcher');
+  const $lookBody = document.getElementById('lookSwitcherBody');
+  const $lookCollapse = document.getElementById('lookCollapse');
+  const $lookCounter = document.getElementById('lookCounter');
+  const $lookStatus = document.getElementById('lookStatus');
+  const $lookStatusText = document.getElementById('lookStatusText');
+  const $lookMeter = document.getElementById('lookMeter');
+
+  // "Next look" walks these in order: each differs from the last in shape,
+  // finish and entrance, so every click is a visible change.
+  const LOOKS = [
+    { presentation: 'floating', surface: 'opaque', entrance: 'slide' },
+    { presentation: 'compact', surface: 'opaque', entrance: 'rise' },
+    { presentation: 'floating', surface: 'translucent', entrance: 'fade' },
+    { presentation: 'full-width', surface: 'bordered', entrance: 'rise' },
+    { presentation: 'compact', surface: 'translucent', entrance: 'slide' },
+    { presentation: 'full-width', surface: 'opaque', entrance: 'fade' },
+  ];
+  const LOOK_WORDS = {
+    'full-width': 'Full-width', floating: 'Floating', compact: 'Compact',
+    opaque: 'opaque', translucent: 'glass', bordered: 'bordered',
+    none: 'no entrance', fade: 'fades in', slide: 'slides up', rise: 'rises in',
+  };
+  // Where each control lives in the panel.
+  const LOOK_CONTROLS = {
+    presentation: { radio: 'presentation' },
+    surface: { radio: 'surface' },
+    entrance: { select: 'entranceSelect' },
+    visibility: { select: 'visibilitySelect' },
+  };
+
+  function setPanelControl(key, value) {
+    const c = LOOK_CONTROLS[key];
+    const el = c.radio
+      ? document.querySelector(`input[name="${c.radio}"][value="${value}"]`)
+      : document.getElementById(c.select);
+    if (!el) return;
+    if (c.radio) el.checked = true; else el.value = value;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function setVisibilityMode(value) {
+    setPanelControl('visibility', value);
+  }
+
+  function currentLookIndex() {
+    return LOOKS.findIndex((l) => l.presentation === state.presentation && l.surface === state.surface && l.entrance === state.entrance);
+  }
+
+  function cancelLookReplay() {
+    if (!lookReplayTimer) return;
+    clearTimeout(lookReplayTimer);
+    lookReplayTimer = null;
+    applyVisibility();
+  }
+
+  // Takes the bar off screen for a beat, then brings it back with the
+  // chosen entrance, so "None" (it simply appears) can be compared too.
+  function replayEntrance() {
+    if (!state.scrollVisible || state.legacyMode || state.fullyDismissed) return;
+    clearTimeout(lookReplayTimer);
+    $sticky.dataset.visible = 'false';
+    lookReplayTimer = setTimeout(() => {
+      lookReplayTimer = null;
+      applyVisibility(); // sees the bar as newly visible, so it plays the entrance
+      renderDemoNotes();
+    }, prefersReducedMotion ? 0 : 320);
+    log('entrance_replayed', state.entrance);
+  }
+
+  function applyLook(i) {
+    const look = LOOKS[(i + LOOKS.length) % LOOKS.length];
+    Object.entries(look).forEach(([k, v]) => setPanelControl(k, v));
+    replayEntrance();
+  }
+
+  function showLookSwitcher(show) {
+    if (!lookReady) return;
+    $look.hidden = !show || embedded;
+    if (!$look.hidden) syncLookSwitcher();
+    syncScrollCue();
+  }
+
+  function syncLookSwitcher() {
+    if (!lookReady) return;
+    ['presentation', 'surface', 'entrance', 'visibility'].forEach((k) => {
+      const r = $look.querySelector(`input[name="look-${k}"][value="${state[k]}"]`);
+      if (r) r.checked = true;
+    });
+    document.getElementById('lookSectionLabel').textContent = sectionLabel(state.sectionReachTarget);
+    const i = currentLookIndex();
+    const words = `${LOOK_WORDS[state.presentation]}, ${LOOK_WORDS[state.surface]}, ${LOOK_WORDS[state.entrance]}`;
+    $lookCounter.textContent = i >= 0 ? `Look ${i + 1} of ${LOOKS.length}: ${words}` : `Custom: ${words}`;
+    syncLookStatus();
+  }
+
+  // How far the visitor is toward the current trigger point (0 → 1).
+  function triggerProgress() {
+    const y = window.scrollY;
+    const vh = window.innerHeight;
+    let at;
+    switch (state.visibility) {
+      case 'scroll10': case 'scroll25':
+        at = (state.visibility === 'scroll10' ? 0.1 : 0.25) * (document.documentElement.scrollHeight - vh);
+        break;
+      case 'hero-exit':
+        at = $hero.getBoundingClientRect().bottom + y;
+        break;
+      case 'section-reach': {
+        const el = document.getElementById(state.sectionReachTarget);
+        at = el ? el.getBoundingClientRect().top + y - vh * 0.75 : 0;
+        break;
+      }
+      default: return 1;
+    }
+    return at > 0 ? Math.min(1, Math.max(0, y / at)) : 1;
+  }
+
+  function triggerWords() {
+    switch (state.visibility) {
+      case 'scroll10': return 'past 10% of the page';
+      case 'scroll25': return 'past 25% of the page';
+      case 'hero-exit': return 'past the hero image';
+      case 'section-reach': return `to the ${sectionLabel(state.sectionReachTarget)} section`;
+      default: return '';
+    }
+  }
+
+  function syncLookStatus() {
+    if (!lookReady || $look.hidden) return;
+    const mode = state.visibility === 'always' ? 'always' : state.scrollVisible ? 'shown' : 'waiting';
+    $lookStatus.dataset.state = mode;
+    const p = triggerProgress();
+    $lookMeter.style.transform = `scaleX(${mode === 'waiting' ? p : 1})`;
+    const text = mode === 'always'
+      ? 'Shows on page load, no scrolling needed.'
+      : mode === 'waiting'
+        ? `Hidden until you scroll ${triggerWords()}: ${Math.round(p * 100)}% there.`
+        : `Appeared once you scrolled ${triggerWords()}.`;
+    // Only touch the DOM (and the live region) when the words change.
+    if ($lookStatusText.textContent !== text) $lookStatusText.textContent = text;
+  }
+
+  $look.addEventListener('change', (e) => {
+    const key = e.target.name && e.target.name.replace(/^look-/, '');
+    if (!LOOK_CONTROLS[key]) return;
+    setPanelControl(key, e.target.value);
+    if (key === 'visibility') {
+      // Start from the top so the trigger can be watched as it happens.
+      if (e.target.value !== 'always') window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+    } else {
+      replayEntrance();
+    }
+  });
+  // Keep the switcher in step when the panel's own controls change.
+  $panel.addEventListener('change', (e) => {
+    if (e.target.closest('#lookSwitcher')) return;
+    syncLookSwitcher();
+  });
+  document.getElementById('lookNext').addEventListener('click', () => {
+    const i = currentLookIndex();
+    applyLook(i + 1);
+  });
+  document.getElementById('lookReplay').addEventListener('click', replayEntrance);
+  document.getElementById('lookTop').addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+  });
+  $lookCollapse.addEventListener('click', () => {
+    const open = $lookBody.hidden;
+    $lookBody.hidden = !open;
+    $lookCollapse.setAttribute('aria-expanded', String(open));
+    $lookCollapse.setAttribute('aria-label', open ? 'Collapse the switcher' : 'Expand the switcher');
+  });
+  lookReady = true;
+
+  /* ------------------------------------------------------------------ *
+   * Scroll hint
+   *
+   * Whenever the surface is waiting on a scroll trigger (from the switcher
+   * or the panel's "Show when"), a hint sits where it will appear and says
+   * what to do, so an empty page bottom never reads as a broken demo.
+   * Dismissing it holds until the trigger changes.
+   * ------------------------------------------------------------------ */
+
+  const $scrollCue = document.getElementById('scrollCue');
+  const $scrollCueText = document.getElementById('scrollCueText');
+  const $scrollCueMeter = document.getElementById('scrollCueMeter');
+  let scrollCueDismissedFor = null;
+  const scrollCueKey = () => `${state.visibility}|${state.sectionReachTarget}`;
+
+  function syncScrollCue() {
+    if (!lookReady) return;
+    // On phones the open panel covers the page, so the hint waits for it to close.
+    const panelCovers = !$panel.hidden && document.documentElement.clientWidth <= 720;
+    const waiting = !embedded && !state.legacyMode && !state.fullyDismissed && !panelCovers
+      && state.visibility !== 'always' && !state.scrollVisible;
+    const show = waiting && scrollCueDismissedFor !== scrollCueKey();
+    if (show) {
+      const fix = $look.hidden
+        ? 'To show it right away, open Prototype Controls → Visibility & Entrance and set "Show when" to Always visible.'
+        : 'To show it right away, choose Always under Appears in the "Try a look" switcher.';
+      const text = `It's set to appear once you scroll ${triggerWords()}. ${fix}`;
+      if ($scrollCueText.textContent !== text) $scrollCueText.textContent = text;
+      $scrollCueMeter.style.transform = `scaleX(${triggerProgress()})`;
+    }
+    if ($scrollCue.hidden === show) {
+      $scrollCue.hidden = !show;
+      renderDemoNotes();
+    }
+  }
+
+  document.getElementById('scrollCueClose').addEventListener('click', () => {
+    scrollCueDismissedFor = scrollCueKey();
+    log('scroll_hint_dismissed', state.visibility);
+    syncScrollCue();
+  });
+
   function openPanelSections(indices) {
     document.querySelectorAll('#controlPanel details').forEach((d, i) => { d.open = indices.includes(i); });
   }
@@ -2792,10 +3036,14 @@
     setRadio('scrollspy', state.scrollSpy);
     setRadio('animspeed', state.animSpeed);
     setSelect('visibilitySelect', state.visibility);
+    setSelect('sectionReachSelect', state.sectionReachTarget);
+    document.getElementById('sectionReachField').hidden = state.visibility !== 'section-reach';
+    setSelect('entranceSelect', state.entrance);
     setSelect('promptDelaySelect', state.promptDelay);
     applyAnimSpeed(state.animSpeed);
     markActivePresetButton();
     applyControlsVisibility();
+    syncLookSwitcher();
   }
 
   /* ------------------------------------------------------------------ *
@@ -2956,11 +3204,13 @@
     $panel.hidden = false;
     $panelToggle.hidden = true;
     $panelToggle.setAttribute('aria-expanded', 'true');
+    syncScrollCue();
   }
   function closePanel() {
     $panel.hidden = true;
     $panelToggle.hidden = false;
     $panelToggle.setAttribute('aria-expanded', 'false');
+    syncScrollCue();
   }
   $panelToggle.addEventListener('click', () => ($panel.hidden ? openPanel() : closePanel()));
   $panelClose.addEventListener('click', closePanel);
@@ -3148,10 +3398,16 @@
     'flow-4': [
       note('presentation', SURFACE, 'Same content, different shell',
         {
-          desktop: 'Full-width bar, floating panel, or compact pill — each with opaque, translucent, or bordered finishes — all from one component.',
-          mobile: 'Full-width bar, floating panel, or compact pill, each with opaque, translucent, or bordered finishes, all from one component. On a phone, floating and compact shrink to fit the screen, so the differences are subtler.',
+          desktop: 'Full-width bar, floating panel, or compact pill; opaque, glass, or bordered; fading, sliding, or rising in, all from one component. Flip through them with the "Try a look" switcher, top right.',
+          mobile: 'Full-width bar, floating panel, or compact pill; opaque, glass, or bordered; fading, sliding, or rising in, all from one component. Flip through them with the "Try a look" switcher at the top. On a phone, floating and compact shrink to fit the screen, so the shapes differ less.',
         },
         'Page and brand teams choose a presentation per placement without a new build.'),
+      note('trigger', SURFACE, 'Shown when it has something to add',
+        {
+          desktop: 'Appears sets when the bar shows up: on load, after 10% or 25% of the page, once the hero scrolls away, or when a chosen section arrives. Pick one and the page returns to the top, so you can scroll down and watch it enter.',
+          mobile: 'Appears sets when the bar shows up: on load, after 10% or 25% of the page, once the hero scrolls away, or when a chosen section arrives. Pick one and the page returns to the top, so you can scroll down and watch it enter.',
+        },
+        'The hero gets the screen to itself on arrival, and the offer shows up once the visitor is actually reading.'),
     ],
     'flow-5': [
       note('rotation', SURFACE, 'Several messages, one slot',
@@ -3357,7 +3613,7 @@
 
     // Things a note must not cover: the sticky surface, the privacy notice,
     // and the chat window — unless the note is about that very thing.
-    const obstacleEls = [$surface, $privacyBar, $chatWindow, $panelToggle].filter((el) => !el.hidden);
+    const obstacleEls = [$surface, $privacyBar, $chatWindow, $panelToggle, $look, $scrollCue].filter((el) => !el.hidden);
     const placed = [];
 
     els.forEach((el) => {

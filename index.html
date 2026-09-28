@@ -316,6 +316,7 @@
           <option value="none">None</option>
           <option value="fade" selected>Fade</option>
           <option value="slide">Short slide up</option>
+          <option value="rise">Rise from the edge</option>
         </select>
       </label>
       <p class="panel__label">Animation timing</p>
@@ -497,6 +498,81 @@
      why it matters). Prototype chrome, positioned by script.js.
      ============================================================ -->
 <div id="demoNotes" class="demo-notes" aria-label="Demo notes"></div>
+
+<!-- ============================================================
+     PRESENTATION SWITCHER — Demo Flow step 4 only. A one-glance way to
+     flip the same content through every shell, finish, entrance, and
+     trigger point, without digging through the control panel. Mirrors the
+     panel's own controls (changing one updates the other).
+     ============================================================ -->
+<section id="lookSwitcher" class="look-switcher" aria-labelledby="lookSwitcherTitle" hidden>
+  <div class="look-switcher__head">
+    <h2 class="look-switcher__title" id="lookSwitcherTitle">Try a look</h2>
+    <button type="button" class="look-switcher__next" id="lookNext">Next look <span aria-hidden="true">›</span></button>
+    <button type="button" class="look-switcher__toggle" id="lookCollapse" aria-expanded="true" aria-controls="lookSwitcherBody" aria-label="Collapse the switcher">
+      <span aria-hidden="true">▾</span>
+    </button>
+  </div>
+  <div class="look-switcher__body" id="lookSwitcherBody">
+    <p class="look-switcher__counter" id="lookCounter" aria-live="polite"></p>
+    <fieldset class="look-row">
+      <legend>Shape</legend>
+      <div class="look-seg">
+        <label><input type="radio" name="look-presentation" value="full-width"><span>Full-width</span></label>
+        <label><input type="radio" name="look-presentation" value="floating"><span>Floating</span></label>
+        <label><input type="radio" name="look-presentation" value="compact"><span>Compact</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="look-row">
+      <legend>Finish</legend>
+      <div class="look-seg">
+        <label><input type="radio" name="look-surface" value="opaque"><span>Opaque</span></label>
+        <label><input type="radio" name="look-surface" value="translucent"><span>Glass</span></label>
+        <label><input type="radio" name="look-surface" value="bordered"><span>Border</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="look-row">
+      <legend>Entrance</legend>
+      <div class="look-seg">
+        <label><input type="radio" name="look-entrance" value="none"><span>None</span></label>
+        <label><input type="radio" name="look-entrance" value="fade"><span>Fade</span></label>
+        <label><input type="radio" name="look-entrance" value="slide"><span>Slide</span></label>
+        <label><input type="radio" name="look-entrance" value="rise"><span>Rise</span></label>
+      </div>
+      <button type="button" class="look-replay" id="lookReplay" aria-label="Replay the entrance"><span aria-hidden="true">↻</span></button>
+    </fieldset>
+    <fieldset class="look-row look-row--trigger">
+      <legend>Appears</legend>
+      <div class="look-seg">
+        <label><input type="radio" name="look-visibility" value="always"><span>Always</span></label>
+        <label><input type="radio" name="look-visibility" value="scroll10"><span>10%</span></label>
+        <label><input type="radio" name="look-visibility" value="scroll25"><span>25%</span></label>
+        <label><input type="radio" name="look-visibility" value="hero-exit"><span>Past hero</span></label>
+        <label><input type="radio" name="look-visibility" value="section-reach"><span id="lookSectionLabel">Section</span></label>
+      </div>
+    </fieldset>
+    <div class="look-status" id="lookStatus" data-state="shown">
+      <p class="look-status__text" id="lookStatusText" aria-live="polite"></p>
+      <div class="look-status__meter" aria-hidden="true"><span id="lookMeter"></span></div>
+      <button type="button" class="look-status__top" id="lookTop">Back to top ↑</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SCROLL HINT — prototype chrome. Shown whenever the sticky surface is
+     set to wait for a scroll trigger and hasn't appeared yet, sitting where
+     it will appear, so a viewer isn't left wondering where it went.
+     ============================================================ -->
+<div id="scrollCue" class="scroll-cue" role="status" hidden>
+  <span class="scroll-cue__arrow" aria-hidden="true">↓</span>
+  <div class="scroll-cue__body">
+    <p class="scroll-cue__title">Scroll down to see the sticky surface</p>
+    <p class="scroll-cue__text" id="scrollCueText"></p>
+    <div class="scroll-cue__meter" aria-hidden="true"><span id="scrollCueMeter"></span></div>
+  </div>
+  <button type="button" class="scroll-cue__close" id="scrollCueClose" aria-label="Dismiss this hint">×</button>
+</div>
 
 <!-- ============================================================
      "UNCOORDINATED CHAOS" COMPARISON
