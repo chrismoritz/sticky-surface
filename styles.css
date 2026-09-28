@@ -160,6 +160,51 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 
 .section--shopping { background: var(--mist); }
 
+/* -------- Messages you closed (end of page) --------
+   Customer-facing: the site's own quiet style, with each entry keeping its
+   message type's color key (dot + action). */
+.section--recent { padding: 80px 28px 40px; border-top: 1px solid var(--line); }
+.section--recent[hidden] { display: none; }
+.section--recent .lede { font-size: 1rem; }
+.recent-list { list-style: none; margin: 32px auto 0; padding: 0; display: grid; gap: 12px; text-align: left; max-width: 680px; }
+.recent-item {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
+  padding: 16px 12px 16px 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper);
+  animation: recentIn var(--dur-med) var(--ease) both;
+}
+@keyframes recentIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .recent-item { animation: none; } }
+.recent-item__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dot, var(--ink)); align-self: start; margin-top: 5px; }
+.recent-item[data-kind="survey"] { --dot: var(--survey); }
+.recent-item[data-kind="quote"] { --dot: var(--quote); }
+.recent-item[data-kind="notice"] { --dot: var(--notice); }
+.recent-item__body { min-width: 0; }
+.recent-item__meta { margin: 0 0 3px; font-size: .74rem; letter-spacing: .04em; text-transform: uppercase; color: var(--grey-500); }
+.recent-item__title { margin: 0; font-size: .98rem; font-weight: 600; line-height: 1.35; }
+.recent-item__sub { margin: 3px 0 0; font-size: .86rem; color: var(--grey-600); }
+.recent-item__actions { display: flex; align-items: center; gap: 6px; }
+.recent-item__action { background: var(--ink); color: #fff; }
+.recent-item__action:hover { background: #26262a; }
+.recent-item__action--survey { background: var(--survey); }
+.recent-item__action--survey:hover { background: #532f80; }
+.recent-item__action--quote { background: var(--quote); }
+.recent-item__action--quote:hover { background: #185f3d; }
+.recent-item[data-kind="notice"] .cta-textlink { color: var(--notice); }
+.recent-item__remove {
+  width: 36px; height: 36px; border-radius: 50%; border: none; background: none; cursor: pointer;
+  display: grid; place-items: center; color: var(--grey-500);
+}
+.recent-item__remove:hover { background: var(--mist); color: var(--ink); }
+@media (max-width: 560px) {
+  .section--recent { padding: 64px 16px 32px; }
+  .recent-item { grid-template-columns: auto 1fr auto; grid-template-areas: "dot body remove" "dot action action"; row-gap: 12px; }
+  .recent-item__dot { grid-area: dot; }
+  .recent-item__body { grid-area: body; }
+  .recent-item__actions { display: contents; }
+  .recent-item__actions > :first-child { grid-area: action; justify-self: start; }
+  .recent-item__remove { grid-area: remove; align-self: start; margin-top: -6px; }
+}
+
 .site-footer { padding: 60px 28px 220px; text-align: center; color: var(--grey-500); font-size: .82rem; }
 
 @media (max-width: 720px) {
@@ -1538,6 +1583,7 @@ html:not(.js) .panel-toggle { display: none; }
 .demo-note[data-placement="top"] .demo-note__caret { bottom: -6px; left: calc(var(--caret, 50%) - 5px); border-top: none; border-left: none; }
 .demo-note[data-placement="left"] .demo-note__caret { right: -6px; top: calc(var(--caret, 50%) - 5px); border-bottom: none; border-left: none; }
 .demo-note[data-placement="right"] .demo-note__caret { left: -7px; top: calc(var(--caret, 50%) - 5px); border-top: none; border-right: none; }
+.demo-note[data-placement="bottom"] .demo-note__caret { top: -6px; left: calc(var(--caret, 50%) - 5px); border-bottom: none; border-right: none; }
 .demo-note[data-placement="detached"] .demo-note__caret { display: none; }
 
 .event-log {

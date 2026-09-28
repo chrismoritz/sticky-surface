@@ -369,6 +369,20 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
   The survey stays a quiet one-liner (a small violet dot and a violet
   button on a light tint), so the two never read as the same kind of ask.
   On phones the quote's button takes its own full-width row.
+- **Closed, not gone.** Anything the visitor dismisses, or that times out
+  or is replaced, is kept in a "Messages you closed" section at the end of
+  the page for the rest of the visit: the satellite-radio offer (timed out,
+  dismissed, or replaced by a survey or quote), a dismissed survey or quote
+  prompt, and the footer message itself when it's fully dismissed. Each
+  entry keeps its color key and its action ("Take the survey", "Get My
+  Quote" or "Continue My Quote", "Learn more", "Show it again"), and
+  bringing the survey or quote back reopens it in the surface straight to
+  its form, still following the priority rules (behind a privacy notice it
+  waits, and says so). One entry per message type, newest first; an entry
+  leaves once its message is showing again, or with its ×, and the section
+  is hidden while empty. Screen readers hear where a closed message went.
+  Acting on a message (the offer's "Learn more", a sent survey or quote)
+  doesn't add an entry.
 - **Motion is restrained and optional.** One Animation timing control
   governs every transition, and visitors who prefer reduced motion get
   instant state changes.
@@ -430,6 +444,7 @@ for a pilot:
 | Does chat get used more as a built-in entry point than as a bubble? | Conversations started (`chat_opened`), and from which entry point |
 | Where does the quote form lose people? | Step-by-step funnel (`quote_step`), which fields fail validation (`quote_validation`), and completions (`quote_submitted`) |
 | Are prompts welcome, or just tolerated? | Dismissals vs. engagement (`survey_dismissed` vs. `survey_submitted`, `quote_dismissed` vs. `quote_submitted`), and how often a prompt had to wait its turn (`…_triggered — waiting`) |
+| Do people come back for what they closed? | Entries saved (`closed_message_saved`, with how it closed) vs. reopened from the end of the page (`closed_message_reopened`), by message type |
 | Does "show more" earn its place? | Opens per section (`show_more_opened`), time spent and how it was closed (`show_more_closed`: escape, button, outside click, or the test-drive link inside), and whether visitors who open one go on to a CTA |
 | Does section navigation help people find things? | Jumps from the bar (`section_changed — nav click`), scroll depth, and whether survey ratings for "easy to find" go up |
 | Does targeting pay off? | Quote completion for returning, high-intent visitors vs. a prompt shown to everyone |

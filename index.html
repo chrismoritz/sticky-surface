@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230c0c0d'/%3E%3Crect x='18' y='60' width='64' height='14' rx='7' fill='%23fff'/%3E%3C/svg%3E">
 <!-- ?v= busts browser and GitHub Pages caches (both keep files ~10 min):
      bump it whenever styles.css or script.js changes. -->
-<link rel="stylesheet" href="styles.css?v=2026-09-28.3">
+<link rel="stylesheet" href="styles.css?v=2026-09-28.4">
 <!-- Flags JavaScript before first paint, so the no-JS fallbacks below
      (.section-action) never flash for visitors who get the sticky surface. -->
 <script>document.documentElement.classList.add('js');</script>
@@ -269,6 +269,18 @@
       </div>
     </section>
 
+    <!-- Messages the visitor closed, or that timed out or were replaced,
+         kept at the end of the page with their actions, for anyone who
+         closed one by mistake or doesn't know how to get it back.
+         Filled by script.js; hidden while empty. -->
+    <section id="recentMessages" class="section section--recent" aria-labelledby="recentMessagesTitle" hidden>
+      <div class="section__inner">
+        <p class="eyebrow">For this visit</p>
+        <h2 id="recentMessagesTitle">Messages you closed</h2>
+        <p class="lede">Closed something by mistake, or it disappeared before you got to it? Anything you dismiss, or that times out, is kept here while you're on this page.</p>
+        <ul class="recent-list" id="recentList"></ul>
+      </div>
+    </section>
     <footer class="site-footer">
       <p>&copy; 2026 Solstice Motors. This is a fictional brand created for a UX prototype.</p>
     </footer>
@@ -795,6 +807,6 @@
   </div>
 </div>
 
-<script src="script.js?v=2026-09-28.3"></script>
+<script src="script.js?v=2026-09-28.4"></script>
 </body>
 </html>

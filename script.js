@@ -2329,7 +2329,7 @@
 
   $dismissBtn.addEventListener('click', () => {
     state.dismissed = true;
-    if (state.dismissMode === 'fully-dismissible') state.fullyDismissed = true;
+    if (state.dismissMode === 'fully-dismissible') { state.fullyDismissed = true; addRecent('primary', 'dismissed'); }
     log('sticky_dismissed', state.dismissMode);
     applyVisibility();
     applyControlsVisibility();
@@ -2338,6 +2338,7 @@
   $restoreBtn.addEventListener('click', () => {
     state.minimized = false;
     state.dismissed = false;
+    removeRecent('primary');
     log('sticky_restored', state.activePreset);
     applyVisibility();
     applyControlsVisibility();
@@ -2514,6 +2515,7 @@
     dropNoticeFor('survey');
     captureCompositionIfNeeded();
     state.surveyActive = true;
+    removeRecent('survey');
     state.dismissed = false;
     state.minimized = false;
     state.scrollVisible = true;
@@ -2522,6 +2524,7 @@
   }
 
   function dismissSurvey() {
+    if (state.surveyActive && !state.surveySubmitted) addRecent('survey', 'dismissed');
     state.surveyActive = false;
     state.surveyDraft = null;
     state.surveySubmitted = false;
@@ -2564,6 +2567,7 @@
 
     captureCompositionIfNeeded();
     state.quoteActive = true;
+    removeRecent('quote');
     state.dismissed = false;
     state.minimized = false;
     state.scrollVisible = true;
@@ -2573,6 +2577,7 @@
   }
 
   function dismissQuote() {
+    if (state.quoteActive && !state.quoteSubmitted) addRecent('quote', 'dismissed');
     state.quoteActive = false;
     state.quoteDismissed = true;
     closeFlyout();
@@ -2635,6 +2640,106 @@
   }
 
   /* ------------------------------------------------------------------ *
+   * Messages you closed — a list at the end of the page of everything the
+   * visitor dismissed, or that timed out or was replaced, each with its
+   * action still attached. For anyone who closed one by mistake, or who
+   * wouldn't know how to summon it again. One entry per kind (the latest),
+   * newest first; an entry goes away once its message shows again.
+   * ------------------------------------------------------------------ */
+
+  // `var` (hoisted): applyPreset(), the prompt triggers and evaluateScroll()
+  // can all run during setup, before this part of the file has.
+  var recentMessages = [];
+  var recentInView = false;
+  var $recentSection = document.getElementById('recentMessages');
+  var $recentList = document.getElementById('recentList');
+
+  const RECENT_KINDS = {
+    notice: { name: 'Partner offer', title: () => NOTICE.message },
+    survey: { name: 'Survey', title: () => 'Help us improve our site', sub: () => 'One quick question about finding what you were looking for.' },
+    quote: { name: 'Request a Quote', title: () => 'Ready for pricing on the Aurelia GT?', sub: () => quoteSubline() },
+    primary: { name: 'Footer message', title: () => state.primary?.message || state.primary?.cta?.label || 'Footer message' },
+  };
+
+  function addRecent(kind, how) {
+    recentMessages = recentMessages.filter((m) => m.kind !== kind);
+    recentMessages.unshift({ kind, how, at: new Date(), title: RECENT_KINDS[kind].title() });
+    renderRecent();
+    log('closed_message_saved', `${RECENT_KINDS[kind].name} — ${how}`);
+    announce(`${RECENT_KINDS[kind].name} closed. It's saved under "Messages you closed" at the end of the page.`);
+  }
+
+  function removeRecent(kind) {
+    if (!recentMessages || !recentMessages.some((m) => m.kind === kind)) return;
+    recentMessages = recentMessages.filter((m) => m.kind !== kind);
+    renderRecent();
+  }
+
+  // Runs fn once the takeover's prompt is on screen (the swap into it is
+  // animated), so restoring can open straight into the survey or quote form.
+  function whenPromptShows(selector, fn, tries = 90) {
+    const el = $primary.querySelector(selector);
+    if (el && !swapTimer) { fn(el); return; }
+    if (tries > 0) requestAnimationFrame(() => whenPromptShows(selector, fn, tries - 1));
+  }
+
+  function restoreRecent(kind) {
+    log('closed_message_reopened', RECENT_KINDS[kind].name);
+    if (kind === 'survey') {
+      triggerSurvey();
+      if (state.surveyActive) whenPromptShows('.primary-prompt--survey .btn--primary', (b) => { if (state.flyout !== 'survey') b.click(); });
+    } else if (kind === 'quote') {
+      state.quoteDismissed = false;
+      state.hasQualifyingAction = true;
+      triggerQuote();
+      if (state.quoteActive) whenPromptShows('.primary-prompt--quote .quote-cta', (b) => { if (state.flyout !== 'quote') b.click(); });
+    } else if (kind === 'primary') {
+      state.fullyDismissed = false;
+      state.dismissed = false;
+      applyVisibility();
+      applyControlsVisibility();
+      removeRecent('primary');
+    }
+    const waiting = (kind === 'survey' && state.pendingSurvey) || (kind === 'quote' && state.pendingQuote);
+    if (waiting) announce(`${RECENT_KINDS[kind].name} will appear as soon as ${state.privacyActive ? 'the privacy notice is answered' : 'what you are doing is finished'}.`);
+  }
+
+  function renderRecent() {
+    $recentSection.hidden = !recentMessages.length;
+    const time = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    $recentList.replaceChildren(...recentMessages.map((m) => {
+      const k = RECENT_KINDS[m.kind];
+      let action;
+      if (m.kind === 'notice') {
+        action = h('a', { class: 'cta-textlink', href: '#technology', onclick: () => log('cta_clicked', 'notice: learn more (from closed messages)') },
+          NOTICE.cta, ' ', h('span', { 'aria-hidden': 'true', text: '→' }));
+      } else {
+        const label = m.kind === 'survey' ? 'Take the survey' : m.kind === 'quote' ? quoteCtaLabel() : 'Show it again';
+        action = h('button', { type: 'button', class: `btn btn--small recent-item__action recent-item__action--${m.kind}`, text: label, onclick: () => restoreRecent(m.kind) });
+      }
+      const sub = k.sub && k.sub();
+      return h('li', { class: 'recent-item', 'data-kind': m.kind },
+        h('span', { class: 'recent-item__dot', 'aria-hidden': 'true' }),
+        h('div', { class: 'recent-item__body' },
+          h('p', { class: 'recent-item__meta', text: `${k.name} · ${m.how} at ${time(m.at)}` }),
+          h('p', { class: 'recent-item__title', text: m.title }),
+          sub ? h('p', { class: 'recent-item__sub', text: sub }) : null),
+        h('div', { class: 'recent-item__actions' },
+          action,
+          h('button', { type: 'button', class: 'recent-item__remove', 'aria-label': `Remove "${k.name}" from this list`, innerHTML: closeIcon(), onclick: () => { log('closed_message_removed', k.name); removeRecent(m.kind); } })));
+    }));
+    renderDemoNotes();
+  }
+
+  function evaluateRecentInView() {
+    if (!$recentSection) return;
+    if ($recentSection.hidden) { if (recentInView) { recentInView = false; renderDemoNotes(); } return; }
+    const r = $recentSection.getBoundingClientRect();
+    const inView = r.top < window.innerHeight * 0.85 && r.bottom > 0;
+    if (inView !== recentInView) { recentInView = inView; renderDemoNotes(); }
+  }
+
+  /* ------------------------------------------------------------------ *
    * Timed notice — the lowest-priority optional message. It borrows the
    * primary zone like Survey/Quote, but closes itself when its time runs
    * out (shown as a line along the top edge that shrinks to nothing), and
@@ -2661,6 +2766,7 @@
     }
     captureCompositionIfNeeded();
     state.noticeActive = true;
+    removeRecent('notice');
     state.dismissed = false;
     state.minimized = false;
     state.scrollVisible = true;
@@ -2675,6 +2781,7 @@
     state.noticeActive = false;
     restoreCompositionIfIdle();
     log('notice_closed', reason);
+    if (reason !== 'acted on') addRecent('notice', reason === 'timed out' ? 'timed out' : 'dismissed');
     swapPrimary(true);
     maybeReleasePendingOverlays();
   }
@@ -2685,6 +2792,7 @@
     stopNoticeTimer();
     state.noticeActive = false;
     log('notice_closed', `dropped for the ${what} — ancillary notices aren't queued`);
+    addRecent('notice', `replaced by the ${what}`);
   }
 
   function startNoticeTimer() {
@@ -2814,6 +2922,7 @@
     }
     syncLookStatus();
     syncScrollCue();
+    evaluateRecentInView();
 
     // Scroll spy: find the section most in view
     let current = state.activeSection;
@@ -2861,6 +2970,7 @@
     // or finish animating on top of it.
     closeMoreModal('scene changed', { instant: true });
     cancelCtaMorph();
+    removeRecent('primary'); // a new scene shows the bar again
     cancelScheduledOverlays();
     cancelSwap();
     stopNoticeTimer();
@@ -3870,6 +3980,14 @@
         }, PROBLEM));
       return out;
     }
+    // Desktop only: on a phone there's no room beside the list, and a note
+    // over it would cover the very buttons it describes (the section's own
+    // heading and intro already explain it).
+    if (recentInView && recentMessages.length && document.documentElement.clientWidth > 720) {
+      out.push(note('recent', '#recentList', 'Closed, not gone',
+        'Anything the visitor dismissed, or that timed out or was replaced, lands here at the end of the page, newest first, with its action still attached. Bringing the survey or quote back reopens it in the surface, straight to its form.',
+        'Someone who closed a message by mistake, or only later wants it, has an obvious place to find it, without needing to know how to summon it again.', { prefer: 'side' }));
+    }
     if (state.privacyActive) {
       out.push(note('privacy', '#privacyBar p', 'Required UI always wins',
         'The privacy notice takes the bottom edge and the sticky surface lifts above it. Prompts that come due wait until it is answered.',
@@ -3999,7 +4117,7 @@
       const { title } = n;
       $demoNotes.append(h('div', {
         class: 'demo-note', role: 'note', 'aria-label': `Demo note: ${title}`,
-        'data-id': n.id, 'data-anchor': n.anchor, 'data-kind': n.kind || 'neutral',
+        'data-id': n.id, 'data-anchor': n.anchor, 'data-kind': n.kind || 'neutral', 'data-prefer': n.prefer || null,
       },
       h('div', { class: 'demo-note__head' },
         h('span', { class: 'demo-note__kicker', text: eligible.length > 1 ? `Demo note · ${i + 1} of ${eligible.length}` : 'Demo note' }),
@@ -4080,8 +4198,14 @@
         ...(inSurface ? [] : [
           ['left', box(r.left - w - gap, cy - hgt / 2)],
           ['right', box(r.right + gap, cy - hgt / 2)],
+          // Last resort before detaching: under the anchor (on phones there
+          // is rarely room beside it, and above may be taken by the pill).
+          ['bottom', box(clampLeft(cx - w / 2), r.bottom + gap)],
         ]),
       ];
+      // A note can prefer the side of its anchor (e.g. beside a list, rather
+      // than over the heading above it).
+      if (el.dataset.prefer === 'side') candidates.sort(([a], [c]) => (a === 'left' || a === 'right' ? 0 : 1) - (c === 'left' || c === 'right' ? 0 : 1));
       let [placement, b] = candidates.find(([, c]) => free(c)) || [];
       if (!b) {
         // Lift above whatever is in the way. The note is no longer next to
@@ -4100,7 +4224,7 @@
       el.style.top = `${Math.round(b.top)}px`;
       el.dataset.placement = placement;
       // Point the caret at the nearest part of the anchor.
-      if (placement === 'top') {
+      if (placement === 'top' || placement === 'bottom') {
         const x = Math.min(Math.max(b.left + w / 2, r.left + 12), r.right - 12);
         el.style.setProperty('--caret', `${Math.min(Math.max(x - b.left, 18), w - 18)}px`);
       } else {
