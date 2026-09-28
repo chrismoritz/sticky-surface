@@ -31,15 +31,60 @@
     { id: 'shopping', label: 'Shopping' },
   ];
 
-  const CONTEXTUAL_CTA = {
-    hero: 'Schedule a Test Drive',
-    overview: 'Schedule a Test Drive',
-    design: 'Explore Gallery',
-    interior: 'Interior Features',
-    technology: 'Learn About DriveSense',
-    performance: 'View Specs',
-    gallery: 'Explore Gallery',
-    shopping: 'Search Inventory',
+  // Scroll Spy's contextual mode: each section nominates its next best
+  // action. A "link" goes somewhere (→). A "more" opens deeper content on
+  // the section's own topic in a modal, in place (+): the Floating Show
+  // More Button pattern, where the button then becomes the modal's close.
+  const CONTEXTUAL_ACTIONS = {
+    hero: { kind: 'link', label: 'Schedule a Test Drive', href: '#shopping' },
+    overview: { kind: 'link', label: 'Schedule a Test Drive', href: '#shopping' },
+    design: { kind: 'link', label: 'Explore the Gallery', href: '#gallery' },
+    interior: { kind: 'more', label: 'Discover the cabin, up close', modal: 'interior' },
+    technology: { kind: 'more', label: 'Discover what DriveSense sees for you', modal: 'drivesense' },
+    performance: { kind: 'more', label: 'See how 620 hp stays this quiet', modal: 'performance' },
+    gallery: { kind: 'link', label: 'Build Your Own', href: '#shopping' },
+    shopping: { kind: 'link', label: 'Search Inventory', href: '#shopping' },
+  };
+  const contextualAction = (id) => CONTEXTUAL_ACTIONS[id] || CONTEXTUAL_ACTIONS.hero;
+
+  // What the "more" actions open. Fictional content, consistent with the page.
+  const MORE_CONTENT = {
+    drivesense: {
+      eyebrow: 'DriveSense™ Assist',
+      title: 'It reads the road a quarter-mile ahead.',
+      intro: 'Long-range radar, eight cameras and live traffic data work together to anticipate what is coming, then smooth your speed and lane position before you would notice anything changed.',
+      hero: 'gradient-h',
+      blocks: [
+        { title: 'Sees further than you can', text: 'Slowdowns, merges and lane closures are picked up a quarter-mile out, so braking is gradual instead of sudden.', stat: '0.25 mi', statLabel: 'look-ahead', media: 'gradient-f' },
+        { title: 'Learns your commute', text: 'On routes you drive often, DriveSense remembers where traffic bunches up and starts easing off a little earlier each time.', stat: '8', statLabel: 'cameras, plus radar', media: 'gradient-c' },
+        { title: 'Better after you buy it', text: 'Updates arrive overnight. The latest added lane-change assist on divided highways and cut unnecessary braking by 30%.', stat: '30%', statLabel: 'less phantom braking', media: 'gradient-h' },
+      ],
+      footnote: 'DriveSense Assist is a driver-assistance feature and does not make the vehicle autonomous. Keep your hands on the wheel and your eyes on the road. Fictional product, created for a UX prototype.',
+    },
+    interior: {
+      eyebrow: 'Interior',
+      title: 'A cabin tuned like an instrument.',
+      intro: 'Every material was chosen for how it looks, feels and sounds over a long day of driving, and every surface you touch is finished by hand.',
+      hero: 'gradient-e',
+      blocks: [
+        { title: 'Open-pore wood, finished by hand', text: 'Sustainably sourced walnut or ash, left unlacquered so the grain stays warm to the touch.', stat: '11', statLabel: 'hours of hand finishing', media: 'gradient-d' },
+        { title: 'Seats that adjust with you', text: '22-way adaptive seats shift support through a long drive, with heating, ventilation and a five-program massage.', stat: '22-way', statLabel: 'adaptive seating', media: 'gradient-a' },
+        { title: 'Quiet you can hear', text: 'Acoustic glass and active noise cancellation cut outside noise by 40%, so the 17-speaker system never has to shout.', stat: '40%', statLabel: 'quieter cabin', media: 'gradient-g' },
+      ],
+      footnote: 'Materials and options vary by trim. Fictional product, created for a UX prototype.',
+    },
+    performance: {
+      eyebrow: 'Performance',
+      title: '620 hp, delivered quietly.',
+      intro: 'Two permanent-magnet motors and a low-slung battery give Aurelia GT the balance of a sports sedan with the composure of a flagship.',
+      hero: 'gradient-c',
+      blocks: [
+        { title: 'Dual motors, one feel', text: 'Torque shifts between axles thousands of times a second, so power arrives smoothly whether the road is dry, wet or winding.', stat: '2.9s', statLabel: '0–60 mph', media: 'gradient-f' },
+        { title: 'Weight where it helps', text: 'The 97 kWh pack sits below the floor, for a low center of gravity and an even 50/50 balance front to rear.', stat: '50/50', statLabel: 'weight balance', media: 'gradient-b' },
+        { title: 'Range without compromise', text: 'An efficient heat pump and a 0.198 drag coefficient keep 620 miles of estimated range, even with this much power on tap.', stat: '620 mi', statLabel: 'estimated range', media: 'gradient-h' },
+      ],
+      footnote: 'Estimates based on internal testing. Actual results vary with conditions. Fictional product, created for a UX prototype.',
+    },
   };
 
   const ROTATING_MESSAGES = [
@@ -237,7 +282,7 @@
         primaryType: 'message-cta', primary: { message: '', cta: { label: 'Schedule a Test Drive' } },
         chat: 'off', search: 'off',
       },
-      note: 'Scroll the page: the button changes to the next best action for each section. The Scroll Spy panel section also has orientation and section-navigation modes.',
+      note: 'Scroll the page: the button morphs into the next best action for each section, either a link (→) or a "show more" that opens in place (+). The Scroll Spy panel section also has orientation and section-navigation modes.',
     },
     {
       id: 'timed-notice',
@@ -353,6 +398,7 @@
     flyout: null, // 'chat' | 'search' | null
 
     chatWindowOpen: false,
+    moreOpen: null, // key of the open "show more" modal, if any
     chatWindowMessages: [],
 
     privacyActive: false,
@@ -460,8 +506,14 @@
    * visible in real time, instead of only inferable from behavior.
    * ------------------------------------------------------------------ */
 
+  // Someone is in the middle of something: prompts wait until they're done.
+  function interactionBusy() {
+    return !!(state.activeInteraction || state.chatWindowOpen || state.moreOpen);
+  }
+
   function computeActiveLayerLabel() {
     if (state.privacyActive) return 'Required UI — Privacy notice';
+    if (state.moreOpen) return `Active interaction — Show more: ${MORE_CONTENT[state.moreOpen].eyebrow}`;
     if (state.activeInteraction === 'chat' || state.chatWindowOpen) return 'Active interaction — Chat';
     if (state.activeInteraction === 'search') return 'Active interaction — Search';
     if (state.flyout === 'chat') return 'Requested utility — Chat prompts open';
@@ -814,7 +866,7 @@
     let ctaLabel = data.cta ? data.cta.label : null;
 
     if (state.scrollSpy === 'contextual') {
-      ctaLabel = CONTEXTUAL_CTA[state.activeSection] || ctaLabel;
+      ctaLabel = contextualAction(state.activeSection).label;
     }
 
     let messageText = data.message || '';
@@ -876,7 +928,9 @@
       $primary.appendChild(p);
     }
 
-    if (ctaLabel) {
+    if (ctaLabel && state.scrollSpy === 'contextual' && state.ctaStyle !== 'text-link') {
+      $primary.appendChild(h('div', { class: 'primary-ctas' }, buildContextualCta(contextualAction(state.activeSection))));
+    } else if (ctaLabel) {
       const cta = document.createElement('a');
       cta.href = (data.cta && data.cta.href) || '#shopping';
       cta.addEventListener('click', () => log('cta_clicked', ctaLabel));
@@ -997,6 +1051,251 @@
   $sticky.addEventListener('mouseleave', () => { state.rotationPaused = false; resumeNotice('hover'); });
   $sticky.addEventListener('focusin', () => { state.rotationPaused = true; pauseNotice('focus'); });
   $sticky.addEventListener('focusout', () => { state.rotationPaused = false; resumeNotice('focus'); });
+
+  /* ------------------------------------------------------------------ *
+   * Contextual next best action (Scroll Spy "Contextual CTA")
+   *
+   * One button whose job changes with the section in view. A "link"
+   * action goes somewhere; a "more" action opens deeper content on the
+   * section's topic in a modal, and the button itself becomes that
+   * modal's close, in the same spot (the Floating Show More Button).
+   * Between sections the button morphs rather than cross-fading: the
+   * label clears, it collapses to its icon, then grows into the next
+   * action with the new label arriving last.
+   * ------------------------------------------------------------------ */
+
+  const ICON_PLUS = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  const ICON_ARROW = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const actionKey = (a) => `${a.kind}:${a.label}`;
+
+  function buildContextualCta(action) {
+    const more = action.kind === 'more';
+    const open = more && state.moreOpen === action.modal;
+    const el = h(more ? 'button' : 'a', {
+      class: `btn btn--small cta-action cta-action--${action.kind}${open ? ' is-close' : ''}`,
+      'data-key': actionKey(action),
+      onclick: (e) => {
+        if (!more) { log('cta_clicked', action.label); return; }
+        e.preventDefault();
+        if (state.moreOpen) closeMoreModal('button');
+        else openMoreModal(action.modal);
+      },
+    },
+    h('span', { class: 'cta-action__label', text: action.label }),
+    h('span', { class: 'cta-action__icon', 'aria-hidden': 'true', innerHTML: more ? ICON_PLUS : ICON_ARROW }));
+    if (more) {
+      el.type = 'button';
+      el.setAttribute('aria-haspopup', 'dialog');
+      el.setAttribute('aria-controls', 'moreModal');
+      el.setAttribute('aria-expanded', String(open));
+      if (open) el.setAttribute('aria-label', `Close: ${MORE_CONTENT[action.modal].eyebrow}`);
+    } else {
+      el.href = action.href;
+    }
+    return el;
+  }
+
+  let ctaMorph = null; // { stage: 'out' | 'in', anims }
+  let morphToken = 0;
+  const MORPH_EASE = 'cubic-bezier(.2,.8,.2,1)';
+
+  function cancelCtaMorph() {
+    if (!ctaMorph) return;
+    morphToken++;
+    ctaMorph.anims.forEach((a) => a.cancel());
+    ctaMorph = null;
+    $primary.querySelectorAll('.cta-action.is-morphing').forEach((el) => el.classList.remove('is-morphing'));
+  }
+
+  // Returns false when there's no contextual button to morph (the caller
+  // then falls back to the usual cross-fade).
+  function morphContextualCta() {
+    const el = $primary.querySelector('.cta-action');
+    if (!el || prefersReducedMotion || $sticky.dataset.visible !== 'true') return false;
+    if (state.moreOpen) return true; // the modal's close stays put; resolved on close
+    if (ctaMorph && ctaMorph.stage === 'out') return true; // the swap reads the latest section
+    const next = contextualAction(state.activeSection);
+    if (!ctaMorph && el.dataset.key === actionKey(next)) return true;
+
+    const w0 = el.getBoundingClientRect().width;
+    cancelCtaMorph();
+    const size = el.offsetHeight;
+    const label = el.querySelector('.cta-action__label');
+    el.classList.add('is-morphing');
+    const token = ++morphToken;
+    const anims = [
+      label.animate([{ opacity: 1, filter: 'blur(0)' }, { opacity: 0, filter: 'blur(2px)' }], { duration: 150, easing: 'ease-out', fill: 'forwards' }),
+      el.animate([{ width: `${w0}px` }, { width: `${size}px` }], { duration: 260, delay: 90, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }),
+    ];
+    ctaMorph = { stage: 'out', anims };
+    anims[1].finished.then(() => { if (token === morphToken) expandContextualCta(el, size, token); }, () => {});
+    return true;
+  }
+
+  function expandContextualCta(old, size, token) {
+    if (!old.isConnected) { ctaMorph = null; return; } // re-rendered in the meantime
+    const hadFocus = old === document.activeElement;
+    const oldBg = getComputedStyle(old).backgroundColor;
+    const oldColor = getComputedStyle(old).color;
+    const el = buildContextualCta(contextualAction(state.activeSection));
+    el.classList.add('is-morphing');
+    old.replaceWith(el);
+    ctaMorph.anims.forEach((a) => a.cancel());
+    const w1 = el.getBoundingClientRect().width;
+    const cs = getComputedStyle(el);
+    if (hadFocus) el.focus({ preventScroll: true });
+    const label = el.querySelector('.cta-action__label');
+    const icon = el.querySelector('.cta-action__icon');
+    const anims = [
+      el.animate([
+        { width: `${size}px`, backgroundColor: oldBg, color: oldColor },
+        { width: `${size}px`, backgroundColor: cs.backgroundColor, color: cs.color, offset: 0.3 },
+        { width: `${w1}px`, backgroundColor: cs.backgroundColor, color: cs.color },
+      ], { duration: 520, easing: MORPH_EASE }),
+      icon.animate([{ transform: 'scale(.4) rotate(-90deg)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 280, easing: MORPH_EASE }),
+      label.animate([{ opacity: 0, transform: 'translateX(8px)', filter: 'blur(2px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], { duration: 260, delay: 300, easing: MORPH_EASE, fill: 'backwards' }),
+    ];
+    ctaMorph = { stage: 'in', anims };
+    Promise.all(anims.map((a) => a.finished)).then(() => {
+      if (token !== morphToken) return;
+      el.classList.remove('is-morphing');
+      ctaMorph = null;
+      evaluateCrowding();
+    }, () => {});
+    renderActiveLayer();
+  }
+
+  // The "more" button turning into the modal's close (and back): the label
+  // clears, the button collapses to its icon, and the + turns into an ×.
+  function setCtaCloseState(open) {
+    const el = $primary.querySelector('.cta-action--more');
+    if (!el) return;
+    cancelCtaMorph();
+    const label = el.querySelector('.cta-action__label');
+    const first = el.getBoundingClientRect().width;
+    el.classList.toggle('is-close', open);
+    el.setAttribute('aria-expanded', String(open));
+    if (open) el.setAttribute('aria-label', `Close: ${MORE_CONTENT[state.moreOpen].eyebrow}`);
+    else el.removeAttribute('aria-label');
+    if (prefersReducedMotion) return;
+    const last = el.getBoundingClientRect().width;
+    el.classList.add('is-morphing');
+    const token = ++morphToken;
+    const anims = [
+      el.animate([{ width: `${first}px` }, { width: `${last}px` }], { duration: open ? 320 : 460, delay: open ? 60 : 0, easing: MORPH_EASE, fill: 'backwards' }),
+      open
+        ? label.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' })
+        : label.animate([{ opacity: 0, transform: 'translateX(8px)' }, { opacity: 1, transform: 'none' }], { duration: 240, delay: 240, easing: MORPH_EASE, fill: 'backwards' }),
+    ];
+    ctaMorph = { stage: 'in', anims };
+    Promise.all(anims.map((a) => a.finished)).then(() => {
+      if (token !== morphToken) return;
+      el.classList.remove('is-morphing');
+      ctaMorph = null;
+      if (!open) {
+        // The page may have been resized under the modal; catch up.
+        if (el.dataset.key !== actionKey(contextualAction(state.activeSection))) morphContextualCta();
+        evaluateCrowding();
+      }
+    }, () => {});
+  }
+
+  /* ---- The "show more" modal ---- */
+
+  const $moreModal = document.getElementById('moreModal');
+  const $moreScroller = document.getElementById('moreModalScroller');
+  const $moreCard = document.getElementById('moreModalCard');
+  let moreOpenedAt = 0;
+  let moreCloseTimer = null;
+
+  function renderMoreModal(c) {
+    $moreCard.replaceChildren(
+      h('button', { type: 'button', class: 'more-modal__x', 'aria-label': 'Close', innerHTML: closeIcon(), onclick: () => closeMoreModal('close button') }),
+      h('p', { class: 'more-modal__eyebrow', text: c.eyebrow }),
+      h('h2', { class: 'more-modal__title', id: 'moreModalTitle', tabIndex: -1, text: c.title }),
+      h('p', { class: 'more-modal__intro', text: c.intro }),
+      h('div', { class: `more-modal__hero ${c.hero}`, 'aria-hidden': 'true' }),
+      h('div', { class: 'more-modal__blocks' }, c.blocks.map((b) => h('section', { class: 'more-modal__block' },
+        h('div', { class: `more-modal__media ${b.media}`, 'aria-hidden': 'true' }),
+        h('p', { class: 'more-modal__stat' }, h('strong', { text: b.stat }), h('span', { text: b.statLabel })),
+        h('h3', { text: b.title }),
+        h('p', { text: b.text })))),
+      h('div', { class: 'more-modal__next' },
+        h('p', { text: 'Feel it for yourself.' }),
+        h('a', { class: 'btn btn--primary', href: '#shopping', text: 'Schedule a Test Drive', onclick: () => { log('cta_clicked', 'Schedule a Test Drive (from show more)'); closeMoreModal('next step', { instant: true }); } })),
+      h('p', { class: 'more-modal__footnote', text: c.footnote }));
+  }
+
+  function lockPage(lock) {
+    const root = document.documentElement;
+    // Keep the scrollbar's space only where there is one; reserving it on
+    // overlay-scrollbar devices narrows the page and makes it reflow.
+    const hasScrollbar = window.innerWidth > root.clientWidth;
+    root.style.overflow = lock ? 'hidden' : '';
+    root.style.scrollbarGutter = lock && hasScrollbar ? 'stable' : '';
+    document.querySelector('.site').inert = lock;
+    root.classList.toggle('more-open', lock);
+  }
+
+  function openMoreModal(key) {
+    const c = MORE_CONTENT[key];
+    if (!c || state.moreOpen) return;
+    clearTimeout(moreCloseTimer);
+    state.moreOpen = key;
+    moreOpenedAt = performance.now();
+    renderMoreModal(c);
+    $moreModal.hidden = false;
+    $moreModal.classList.remove('is-closing');
+    $moreScroller.scrollTop = 0; // after un-hiding: a hidden scroller ignores it
+    lockPage(true);
+    setCtaCloseState(true);
+    requestAnimationFrame(() => document.getElementById('moreModalTitle').focus({ preventScroll: true }));
+    log('show_more_opened', `${sectionLabel(state.activeSection)} — ${c.eyebrow}`);
+    renderActiveLayer();
+    renderDemoNotes();
+  }
+
+  function closeMoreModal(how, { instant = false } = {}) {
+    if (!state.moreOpen) return;
+    const key = state.moreOpen;
+    const focusWasInside = $moreModal.contains(document.activeElement) || document.activeElement?.classList.contains('cta-action');
+    state.moreOpen = null;
+    log('show_more_closed', `${MORE_CONTENT[key].eyebrow} — ${how}, after ${((performance.now() - moreOpenedAt) / 1000).toFixed(1)}s`);
+    const finish = () => {
+      $moreModal.hidden = true;
+      $moreModal.classList.remove('is-closing');
+      $moreCard.replaceChildren();
+    };
+    lockPage(false);
+    if (instant || prefersReducedMotion) finish();
+    else {
+      $moreModal.classList.add('is-closing');
+      moreCloseTimer = setTimeout(finish, 280);
+    }
+    setCtaCloseState(false);
+    if (focusWasInside && how !== 'next step') $primary.querySelector('.cta-action')?.focus({ preventScroll: true });
+    renderActiveLayer();
+    renderDemoNotes();
+    maybeReleasePendingOverlays();
+  }
+
+  $moreScroller.addEventListener('click', (e) => {
+    // Outside the card (the dimmed page) closes, like any modal.
+    if (!$moreCard.contains(e.target)) closeMoreModal('outside click');
+  });
+
+  // Keep Tab inside the modal, plus the floating close in the bar.
+  document.addEventListener('keydown', (e) => {
+    if (!state.moreOpen || e.key !== 'Tab') return;
+    const items = [...$moreCard.querySelectorAll('a[href], button:not([disabled])'), $primary.querySelector('.cta-action')].filter(Boolean);
+    if (!items.length) return;
+    // Handled every time: the floating close lives outside the dialog in the
+    // DOM, so the browser's own order would never reach it.
+    e.preventDefault();
+    const i = items.indexOf(document.activeElement);
+    const n = items.length;
+    items[i === -1 ? (e.shiftKey ? n - 1 : 0) : (i + (e.shiftKey ? n - 1 : 1)) % n].focus();
+  });
 
   /* ------------------------------------------------------------------ *
    * Rendering: utilities zone (chat + search)
@@ -1904,7 +2203,7 @@
   // whole bar overflowing) would ever prompt the floating panel to grow;
   // everyday cases — a message or CTA a bit longer than usual — would just
   // quietly ellipsize instead, even with plenty of viewport room to spare.
-  const TRUNCATABLE_SELECTOR = '.primary-nav, .primary-message, .primary-ctas .btn, .cta-textlink, .rotator__msg, .primary-prompt p';
+  const TRUNCATABLE_SELECTOR = '.primary-nav, .primary-message, .primary-ctas .btn, .cta-action__label, .cta-textlink, .rotator__msg, .primary-prompt p';
 
   function barIsOverflowing() {
     const anyTruncated = Array.from($stickyBar.querySelectorAll(TRUNCATABLE_SELECTOR))
@@ -1933,7 +2232,7 @@
     requestAnimationFrame(() => {
       // Mid-roll the message is between two widths and would read as
       // truncated; finishRoll() runs this again once it has settled.
-      if (rollAnims.length) return;
+      if (rollAnims.length || ctaMorph) return;
       // Opportunistic expansion (floating and compact only — full-width
       // already spans the viewport, nothing to expand into): let the panel
       // take more width before ever hiding content. Always on, independent
@@ -2177,7 +2476,7 @@
       log('survey_triggered', 'waiting — privacy notice active');
       return;
     }
-    if (state.activeInteraction || state.chatWindowOpen) {
+    if (interactionBusy()) {
       state.pendingSurvey = true;
       log('survey_triggered', 'waiting — interaction in use');
       return;
@@ -2221,7 +2520,7 @@
       log('quote_triggered', 'waiting — privacy notice active');
       return;
     }
-    if (state.activeInteraction || state.chatWindowOpen) {
+    if (interactionBusy()) {
       state.pendingQuote = true;
       log('quote_triggered', 'waiting — interaction in use');
       return;
@@ -2294,7 +2593,7 @@
   // rather than in the same instant — so "privacy accepted" / "chat closed"
   // and "here's the prompt" read as two moments, not one jump.
   function maybeReleasePendingOverlays() {
-    if (state.privacyActive || state.activeInteraction || state.chatWindowOpen) return;
+    if (state.privacyActive || interactionBusy()) return;
     const beat = promptDelayMs() ? RELEASE_BEAT_MS : 0;
     if (state.pendingQuote) {
       state.pendingQuote = false;
@@ -2330,7 +2629,7 @@
   function triggerNotice() {
     if (state.noticeActive) return;
     const blocker = state.privacyActive ? 'privacy notice active'
-      : (state.activeInteraction || state.chatWindowOpen) ? 'interaction in use'
+      : interactionBusy() ? 'interaction in use'
         : (state.quoteActive || state.surveyActive) ? 'a higher-priority prompt is showing' : null;
     if (blocker) {
       state.pendingNotice = true;
@@ -2516,6 +2815,7 @@
         // section change would be noise. Label changes (contextual CTA,
         // "Viewing: …") are a real content swap, so those cross-fade.
         if (state.scrollSpy === 'navigation') renderPrimary();
+        else if (state.scrollSpy === 'contextual' && morphContextualCta()) renderActiveLayer();
         else swapPrimary(false);
       }
     }
@@ -2536,6 +2836,8 @@
 
     // A preset is a fresh scene: nothing from the previous one should arrive
     // or finish animating on top of it.
+    closeMoreModal('scene changed', { instant: true });
+    cancelCtaMorph();
     cancelScheduledOverlays();
     cancelSwap();
     stopNoticeTimer();
@@ -2688,6 +2990,7 @@
 
   radios('scrollspy').forEach((r) => r.addEventListener('change', () => {
     if (!r.checked) return;
+    closeMoreModal('scene changed', { instant: true });
     state.scrollSpy = r.value;
     renderPrimary();
     evaluateCrowding();
@@ -2749,7 +3052,7 @@
     3: 'Same component, new content every time — click through the presets below.',
     4: 'Same content, different shell. Use the "Try a look" switcher on the page to change the shape, finish, and entrance (or Next look to step through six), and Appears to set when the bar shows up as you scroll.',
     5: 'Several messages share one slot and rotate on a timer: each rolls into place while the panel\'s edge glides to fit it. Rotation pauses while you hover or focus the bar.',
-    6: 'Scroll the page: the floating button becomes the next best action for the section in view (Explore Gallery in Design, View Specs in Performance…), cross-fading as it swaps.',
+    6: 'Scroll the page: the floating button morphs into the next best action for each section. Some go somewhere (→ Explore the Gallery, Search Inventory); others open more on that topic in place (+ DriveSense, Interior, Performance), and the button becomes the close.',
     7: 'Section links in the bar: click one to jump straight to that part of the page. The highlight follows as you scroll.',
     8: 'Each utility has its own color. Focus the chat field (blue) or open Search (teal) and the whole surface tints to match. Esc or clicking away closes things.',
     9: 'A partner message (a satellite-radio free weekend) arrives after the Prompt delay and closes itself when the line along the top runs out. Hover or focus the bar to pause it.',
@@ -2775,6 +3078,7 @@
 
   function runFlowStep(step) {
     log('demo_flow_step', String(step));
+    closeMoreModal('scene changed', { instant: true });
     // Step 5 turns on message rotation; presets deliberately don't reset it
     // (so it can be tried across presets by hand), but each flow step should
     // show its own scenario cleanly rather than inherit rotating messages.
@@ -3268,6 +3572,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (!$frameOverlay.hidden) closeFramePreview();
+    else if (state.moreOpen) closeMoreModal('escape');
     else if (!$chaosOverlay.hidden) { $chaosOverlay.hidden = true; log('chaos_closed'); }
     else if (state.chatWindowOpen && $chatWindow.contains(document.activeElement)) closeChatWindow();
     else if (state.flyout) { closeFlyout(); log('flyout_closed', 'escape'); }
@@ -3510,9 +3815,15 @@
     'scroll-spy': [
       // Live: the wording tracks the section currently in view.
       note('scroll-spy', SURFACE, 'A next best action for every section',
-        (c) => `Right now: ${sectionLabel(state.activeSection)} → “${CONTEXTUAL_CTA[state.activeSection]}”. `
-          + `${c.mobile ? 'Scroll' : 'Scroll the page'} and the button changes to the most useful next step for the section in view, cross-fading and resizing as it goes.`,
-        'This generalizes the coming Floating Show More Button: rather than only opening a section\'s contextual modal, the same button can carry whatever action suits the block in view, and it lives in the shared surface, so it never competes with chat or prompts.'),
+        (c) => {
+          const a = contextualAction(state.activeSection);
+          const does = a.kind === 'more'
+            ? `${c.mobile ? 'tap' : 'click'} the + to open more on this topic right here; the button becomes the close`
+            : 'it goes straight to the next step';
+          return `Right now: ${sectionLabel(state.activeSection)} → “${a.label}” (${does}). `
+            + `${c.mobile ? 'Scroll' : 'Scroll the page'} and the button morphs into the next best action for each section.`;
+        },
+        'This generalizes the coming Floating Show More Button: sections with more to say open it in place (Interior, Technology, Performance), and the rest carry a single relevant action (Gallery, Shopping). It lives in the shared surface, so it never competes with chat or prompts.'),
     ],
     'timed-notice': [
       note('notice-scenario', SURFACE, 'Ancillary messages that step aside',
@@ -3543,7 +3854,8 @@
     }
     const held = state.pendingQuote ? 'quote' : state.pendingSurvey ? 'survey' : state.pendingNotice ? 'notice' : null;
     const blocker = state.privacyActive ? 'the privacy notice'
-      : (state.chatWindowOpen || state.activeInteraction) ? 'an active chat or search'
+      : state.moreOpen ? 'an open "show more" panel'
+        : (state.chatWindowOpen || state.activeInteraction) ? 'an active chat or search'
         : held === 'notice' && (state.quoteActive || state.surveyActive) ? 'a higher-priority prompt' : null;
     if (held && blocker) {
       out.push(note(`held-${held}`, SURFACE, `${promptName(held)} is waiting its turn`,
@@ -3630,7 +3942,8 @@
 
     let eligible = [];
     const hideForOverlay = $frameOverlay && !$frameOverlay.hidden;
-    if ($demoNotesToggle.checked && !embedded && !hideForOverlay) {
+    // Notes stay out of the way while a "show more" modal is being read.
+    if ($demoNotesToggle.checked && !embedded && !hideForOverlay && !state.moreOpen) {
       const seen = new Set();
       eligible = [...situationalNotes(), ...(SCENARIO_NOTES[scenario] || [])]
         .filter((n) => !seen.has(n.id) && seen.add(n.id) && !dismissedNotes.has(n.id) && anchorFor(n));

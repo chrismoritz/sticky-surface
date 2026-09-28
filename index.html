@@ -560,6 +560,18 @@
 </section>
 
 <!-- ============================================================
+     "SHOW MORE" MODAL — opened by a contextual "+" action (Scroll Spy:
+     Contextual CTA). Deeper content on the section in view, over the
+     dimmed page; the button that opened it becomes its close. Sits just
+     under the sticky surface in the stack so that close stays reachable.
+     ============================================================ -->
+<div id="moreModal" class="more-modal" hidden>
+  <div class="more-modal__scroller" id="moreModalScroller">
+    <article class="more-modal__card" id="moreModalCard" role="dialog" aria-modal="true" aria-labelledby="moreModalTitle"></article>
+  </div>
+</div>
+
+<!-- ============================================================
      SCROLL HINT — prototype chrome. Shown whenever the sticky surface is
      set to wait for a scroll trigger and hasn't appeared yet, sitting where
      it will appear, so a viewer isn't left wondering where it went.

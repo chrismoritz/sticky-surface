@@ -603,6 +603,37 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 }
 @media (prefers-reduced-motion: reduce) { .sticky__surface.is-tracing::after { animation: none; } }
 
+/* -------- Contextual next best action --------
+   Label + trailing icon: → for an action that goes somewhere (the black
+   commerce button), + for one that opens more right here (a quieter
+   frosted pill, like the Floating Show More Button). */
+.primary-ctas .btn.cta-action {
+  display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px;
+  position: relative; overflow: hidden;
+  padding: 5px 5px 5px 16px; min-height: 38px;
+  box-sizing: border-box;
+}
+.cta-action__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cta-action__icon {
+  flex: none; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center;
+}
+.cta-action__icon svg { transition: transform 320ms cubic-bezier(.2,.8,.2,1); }
+.cta-action--link { background: var(--ink); color: #fff; }
+.cta-action--link:hover { background: #26262a; }
+.cta-action--link .cta-action__icon { background: rgba(255,255,255,.14); }
+.cta-action--more { background: #ecebe8; color: var(--ink); }
+.cta-action--more:hover { background: #e2e0dc; }
+.cta-action--more .cta-action__icon { background: var(--ink); color: #fff; }
+/* Mid-morph the label keeps its width and is clipped, so the icon stays
+   put at the right edge as the button collapses to it. */
+.cta-action.is-morphing .cta-action__label { flex-shrink: 0; }
+/* Open modal: icon only, and the + turns into an ×. */
+.cta-action.is-close { padding: 5px; gap: 0; }
+.cta-action.is-close .cta-action__label { display: none; }
+.cta-action.is-close .cta-action__icon svg { transform: rotate(45deg); }
+@media (prefers-reduced-motion: reduce) { .cta-action__icon svg { transition: none; } }
+
 /* Manual rotator */
 .rotator { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .rotator__msg { font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1237,6 +1268,78 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 }
 .look-status__top:hover { background: #17301f; }
 .look-status:not([data-state="shown"]) .look-status__top { display: none; }
+
+/* -------- "Show more" modal --------
+   Just under the sticky surface (z 60), above the page and its header, so
+   the floating close stays on top. */
+.more-modal { position: fixed; inset: 0; z-index: 58; }
+.more-modal[hidden] { display: none; }
+.more-modal::before {
+  content: ""; position: absolute; inset: 0;
+  background: rgba(24, 24, 28, .42);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  backdrop-filter: blur(14px) saturate(120%);
+  animation: moreFade 320ms ease-out both;
+}
+.more-modal__scroller {
+  position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 72px 24px 0;
+}
+.more-modal__card {
+  position: relative;
+  max-width: 880px; margin: 0 auto;
+  min-height: calc(100% - 40px);
+  background: #f5f5f3; color: var(--ink);
+  border-radius: 28px 28px 0 0;
+  padding: 64px clamp(24px, 6vw, 72px) 140px; /* bottom room for the floating close */
+  box-shadow: 0 -10px 60px rgba(0,0,0,.25);
+  animation: moreRise 520ms cubic-bezier(.2,.8,.2,1) both;
+}
+.more-modal.is-closing::before { animation: moreFade 260ms ease-in reverse both; }
+.more-modal.is-closing .more-modal__card { animation: moreSink 260ms cubic-bezier(.4,0,1,1) both; }
+@keyframes moreFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes moreRise { from { opacity: 0; transform: translateY(56px); } to { opacity: 1; transform: none; } }
+@keyframes moreSink { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(40px); } }
+@media (prefers-reduced-motion: reduce) {
+  .more-modal::before, .more-modal__card, .more-modal.is-closing::before, .more-modal.is-closing .more-modal__card { animation: none; }
+}
+.more-modal__x {
+  position: absolute; top: 18px; right: 18px;
+  width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer;
+  display: grid; place-items: center;
+  background: #e6e5e2; color: var(--ink);
+}
+.more-modal__x:hover { background: #dcdad6; }
+.more-modal__eyebrow { margin: 0 0 10px; font-size: .8rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--grey-600); }
+.more-modal__title { margin: 0; font-size: clamp(1.9rem, 4.4vw, 3rem); line-height: 1.08; letter-spacing: -.02em; max-width: 16ch; }
+.more-modal__title:focus { outline: none; }
+.more-modal__title:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 4px; }
+.more-modal__intro { margin: 18px 0 0; font-size: 1.08rem; line-height: 1.55; color: var(--grey-600); max-width: 58ch; }
+.more-modal__hero { margin: 40px 0 0; height: clamp(180px, 30vw, 300px); border-radius: 20px; }
+.more-modal__blocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 44px; }
+.more-modal__block h3 { margin: 6px 0 6px; font-size: 1.02rem; }
+.more-modal__block p { margin: 0; font-size: .92rem; line-height: 1.55; color: var(--grey-600); }
+.more-modal__media { height: 120px; border-radius: 14px; margin-bottom: 16px; }
+.more-modal__stat { display: flex; align-items: baseline; gap: 8px; }
+.more-modal__block .more-modal__stat strong { font-size: 1.5rem; color: var(--ink); letter-spacing: -.01em; }
+.more-modal__block .more-modal__stat span { font-size: .78rem; }
+.more-modal__next {
+  margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.more-modal__next p { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.more-modal__footnote { margin: 28px 0 0; font-size: .74rem; line-height: 1.5; color: var(--grey-500); }
+@media (max-width: 720px) {
+  /* The sheet covers the page, so the Prototype Controls pill steps aside
+     while it's open (either close brings it back). */
+  .more-open .panel-toggle { display: none; }
+  /* A full-height sheet on phones. */
+  .more-modal__scroller { padding: 12px 0 0; }
+  .more-modal__card { border-radius: 22px 22px 0 0; padding: 56px 22px 130px; min-height: calc(100% - 12px); }
+  .more-modal__blocks { grid-template-columns: 1fr; gap: 26px; margin-top: 32px; }
+  .more-modal__hero { margin-top: 28px; }
+  .more-modal__x { top: 12px; right: 12px; }
+}
 
 /* -------- Scroll hint --------
    Sits where the sticky surface will appear, until it does. */

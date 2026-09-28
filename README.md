@@ -145,11 +145,13 @@ you pick a preset by hand.
    the panel's edge glides to its new length and a highlight traces its
    border. Rotation pauses while the bar is hovered or focused.
 6. **Scroll Spy: Contextual CTA (V2)** — the Scroll Spy preset, starting
-   from the top of the page. The bar is just a floating button, and as you
-   scroll it becomes the next best action for the section in view (Explore
-   Gallery in Design, View Specs in Performance, Search Inventory in
-   Shopping), cross-fading as it changes. Its demo note updates live
-   ("Right now: Interior → 'Interior Features'").
+   from the top of the page. The bar is just a floating button that morphs
+   into the next best action for each section as you scroll. Some actions go
+   somewhere (→ Explore the Gallery in Design, Build Your Own in Gallery,
+   Search Inventory in Shopping). Others open more on the section's topic
+   in place (+ "Discover what DriveSense sees for you" in Technology, and
+   likewise in Interior and Performance): a modal rises over the dimmed
+   page and the button becomes its close. The demo note updates live.
 7. **Scroll Spy: Section Nav (V2)** — the same scroll tracking, used for
    on-page navigation instead: the bar holds links to the page's sections.
    Click one and the page scrolls straight to it; scroll by hand and the
@@ -296,15 +298,32 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
   content returns.
 - **A next best action for each block.** In Contextual CTA mode the surface
   is just a button, with no standing label, because the action itself says
-  where the visitor is. This is close to the coming **Floating Show More
-  Button**, which opens a section's contextual modal while the visitor is in
-  that section. Built on the shared surface, the same button becomes a
-  general next-best-action slot: each block can nominate its own action (a
-  contextual modal, the gallery, specs, inventory), and the button still
-  follows the surface's priority rules, so it steps aside for chat, prompts
-  and required UI instead of floating over them. When the bar holds nothing
-  but that button, the floating and compact shells tighten into a pill
-  around it, so it reads as a floating button rather than a button in a box.
+  where the visitor is. It builds on the coming **Floating Show More
+  Button** (Apple's version on the iPad Air page was the reference): each
+  section nominates one action, of one of two kinds.
+  - **Go somewhere (→)** — a single relevant action in the black commerce
+    style: Explore the Gallery, Build Your Own, Search Inventory.
+  - **Show more, here (+)** — a quieter frosted pill whose label promises
+    depth on the topic ("Discover what DriveSense sees for you"). It opens
+    a modal over the dimmed, blurred page, and the button itself turns into
+    the modal's close (the + rotates into an ×) in the same spot, so the way
+    out is where the way in was. Escape, clicking the page, and a close
+    button inside the modal also close it, and the visitor lands exactly
+    where they were, with focus back on the button. Tab stays within the
+    modal and its floating close; the page behind is inert and doesn't
+    scroll. On phones the modal is a full-height sheet.
+  - **It morphs between sections** instead of cross-fading: the label
+    clears, the button collapses to its icon, the next icon turns in, the
+    pill grows to its new length, and the new label arrives last. Fast
+    scrolling past several sections lands on the right one without
+    replaying every step in between.
+  - **It follows the surface's rules.** An open modal counts as the visitor
+    being busy, so a survey, quote prompt or timed notice waits for it to
+    close. The privacy notice still wins, and a preset or flow change closes
+    the modal.
+  When the bar holds nothing but that button, the floating and compact
+  shells tighten into a pill around it, so it reads as a floating button
+  rather than a button in a box.
 - **Scroll tracking doubles as on-page navigation.** The same section
   tracking that drives the contextual CTA can instead put section links in
   the bar: clicking one scrolls to it, the current section stays
@@ -383,6 +402,7 @@ for a pilot:
 | Does chat get used more as a built-in entry point than as a bubble? | Conversations started (`chat_opened`), and from which entry point |
 | Where does the quote form lose people? | Step-by-step funnel (`quote_step`), which fields fail validation (`quote_validation`), and completions (`quote_submitted`) |
 | Are prompts welcome, or just tolerated? | Dismissals vs. engagement (`survey_dismissed` vs. `survey_submitted`, `quote_dismissed` vs. `quote_submitted`), and how often a prompt had to wait its turn (`…_triggered — waiting`) |
+| Does "show more" earn its place? | Opens per section (`show_more_opened`), time spent and how it was closed (`show_more_closed`: escape, button, outside click, or the test-drive link inside), and whether visitors who open one go on to a CTA |
 | Does section navigation help people find things? | Jumps from the bar (`section_changed — nav click`), scroll depth, and whether survey ratings for "easy to find" go up |
 | Does targeting pay off? | Quote completion for returning, high-intent visitors vs. a prompt shown to everyone |
 | Do timed notices get noticed? | How notices end (`notice_closed`: acted on, dismissed, timed out, or dropped for a higher-priority prompt), and whether the pause-on-hover gets used |
