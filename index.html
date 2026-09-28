@@ -6,6 +6,9 @@
 <title>Aurelia GT — Sticky Surface Prototype</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230c0c0d'/%3E%3Crect x='18' y='60' width='64' height='14' rx='7' fill='%23fff'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
+<!-- Flags JavaScript before first paint, so the no-JS fallbacks below
+     (.section-action) never flash for visitors who get the sticky surface. -->
+<script>document.documentElement.classList.add('js');</script>
 </head>
 <body>
 
@@ -51,6 +54,12 @@
           <div class="stat"><strong>2.9s</strong><span>0&ndash;60 mph</span></div>
           <div class="stat"><strong>19&nbsp;min</strong><span>10&ndash;80% charge</span></div>
         </div>
+        <!-- Next best action. Without JavaScript it's a plain link here; with
+             JavaScript the sticky surface carries it (script.js reads it from
+             [data-next-action] and removes this .section-action copy). -->
+        <p class="section-action">
+          <a class="btn btn--primary section-action__link" href="#shopping" data-next-action><span class="section-action__label">Schedule a Test Drive</span> <span aria-hidden="true">&rarr;</span></a>
+        </p>
       </div>
     </section>
 
@@ -59,6 +68,12 @@
         <p class="eyebrow">Design</p>
         <h2>Shaped by air, not trend</h2>
         <p class="lede">A single unbroken silhouette, flush glass, and a drag coefficient of 0.198 &mdash; the lowest in its class. Nothing on Aurelia GT's exterior exists without a reason.</p>
+        <!-- Next best action. Without JavaScript it's a plain link here; with
+             JavaScript the sticky surface carries it (script.js reads it from
+             [data-next-action] and removes this .section-action copy). -->
+        <p class="section-action">
+          <a class="btn btn--primary section-action__link" href="#gallery" data-next-action><span class="section-action__label">Explore the Gallery</span> <span aria-hidden="true">&rarr;</span></a>
+        </p>
       </div>
       <div class="media-grid">
         <div class="media-block media-block--wide gradient-a"></div>
@@ -72,6 +87,44 @@
         <p class="eyebrow">Interior</p>
         <h2>A cabin tuned like an instrument</h2>
         <p class="lede">Hand-finished open-pore wood, 22-way adaptive seating, and acoustic glass that cuts outside noise by 40%. Interior Features showcases every material choice in detail.</p>
+        <!-- "Show more" next best action. Without JavaScript it's a native
+             disclosure with the full content inline; with JavaScript the
+             sticky surface's + opens the same content in a modal (script.js
+             reads it from here, then removes this .section-action copy). -->
+        <details class="section-action section-more" data-next-action>
+          <summary><span class="section-action__label">Discover the cabin, up close</span><span class="section-action__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span></summary>
+          <div class="section-more__body" data-more="interior">
+            <p class="more__eyebrow">Interior</p>
+            <h3 class="more__title">A cabin tuned like an instrument.</h3>
+            <p class="more__intro">Every material was chosen for how it looks, feels and sounds over a long day of driving, and every surface you touch is finished by hand.</p>
+            <div class="more__hero gradient-e" aria-hidden="true"></div>
+            <div class="more__blocks">
+              <div class="more__block">
+                <div class="more__media gradient-d" aria-hidden="true"></div>
+                <p class="more__stat"><strong>11</strong> <span>hours of hand finishing</span></p>
+                <h4>Open-pore wood, finished by hand</h4>
+                <p>Sustainably sourced walnut or ash, left unlacquered so the grain stays warm to the touch.</p>
+              </div>
+              <div class="more__block">
+                <div class="more__media gradient-a" aria-hidden="true"></div>
+                <p class="more__stat"><strong>22-way</strong> <span>adaptive seating</span></p>
+                <h4>Seats that adjust with you</h4>
+                <p>22-way adaptive seats shift support through a long drive, with heating, ventilation and a five-program massage.</p>
+              </div>
+              <div class="more__block">
+                <div class="more__media gradient-g" aria-hidden="true"></div>
+                <p class="more__stat"><strong>40%</strong> <span>quieter cabin</span></p>
+                <h4>Quiet you can hear</h4>
+                <p>Acoustic glass and active noise cancellation cut outside noise by 40%, so the 17-speaker system never has to shout.</p>
+              </div>
+            </div>
+            <div class="more__next">
+              <p>Feel it for yourself.</p>
+              <a class="btn btn--primary" href="#shopping">Schedule a Test Drive</a>
+            </div>
+            <p class="more__footnote">Materials and options vary by trim. Fictional product, created for a UX prototype.</p>
+          </div>
+        </details>
       </div>
       <div class="media-grid">
         <div class="media-block gradient-d"></div>
@@ -84,6 +137,44 @@
         <p class="eyebrow">Technology</p>
         <h2>Software that learns the road</h2>
         <p class="lede">DriveSense&trade; Assist reads traffic patterns a quarter-mile ahead. Over-the-air updates mean Aurelia GT gets quicker, quieter, and smarter after you've bought it.</p>
+        <!-- "Show more" next best action. Without JavaScript it's a native
+             disclosure with the full content inline; with JavaScript the
+             sticky surface's + opens the same content in a modal (script.js
+             reads it from here, then removes this .section-action copy). -->
+        <details class="section-action section-more" data-next-action>
+          <summary><span class="section-action__label">Discover what DriveSense sees for you</span><span class="section-action__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span></summary>
+          <div class="section-more__body" data-more="drivesense">
+            <p class="more__eyebrow">DriveSense&trade; Assist</p>
+            <h3 class="more__title">It reads the road a quarter-mile ahead.</h3>
+            <p class="more__intro">Long-range radar, eight cameras and live traffic data work together to anticipate what is coming, then smooth your speed and lane position before you would notice anything changed.</p>
+            <div class="more__hero gradient-h" aria-hidden="true"></div>
+            <div class="more__blocks">
+              <div class="more__block">
+                <div class="more__media gradient-f" aria-hidden="true"></div>
+                <p class="more__stat"><strong>0.25&nbsp;mi</strong> <span>look-ahead</span></p>
+                <h4>Sees further than you can</h4>
+                <p>Slowdowns, merges and lane closures are picked up a quarter-mile out, so braking is gradual instead of sudden.</p>
+              </div>
+              <div class="more__block">
+                <div class="more__media gradient-c" aria-hidden="true"></div>
+                <p class="more__stat"><strong>8</strong> <span>cameras, plus radar</span></p>
+                <h4>Learns your commute</h4>
+                <p>On routes you drive often, DriveSense remembers where traffic bunches up and starts easing off a little earlier each time.</p>
+              </div>
+              <div class="more__block">
+                <div class="more__media gradient-h" aria-hidden="true"></div>
+                <p class="more__stat"><strong>30%</strong> <span>less phantom braking</span></p>
+                <h4>Better after you buy it</h4>
+                <p>Updates arrive overnight. The latest added lane-change assist on divided highways and cut unnecessary braking by 30%.</p>
+              </div>
+            </div>
+            <div class="more__next">
+              <p>Feel it for yourself.</p>
+              <a class="btn btn--primary" href="#shopping">Schedule a Test Drive</a>
+            </div>
+            <p class="more__footnote">DriveSense Assist is a driver-assistance feature and does not make the vehicle autonomous. Keep your hands on the wheel and your eyes on the road. Fictional product, created for a UX prototype.</p>
+          </div>
+        </details>
       </div>
       <div class="media-grid">
         <div class="media-block gradient-f"></div>
@@ -102,6 +193,44 @@
           <div class="stat"><strong>155&nbsp;mph</strong><span>Top speed</span></div>
           <div class="stat"><strong>50/50</strong><span>Weight balance</span></div>
         </div>
+        <!-- "Show more" next best action. Without JavaScript it's a native
+             disclosure with the full content inline; with JavaScript the
+             sticky surface's + opens the same content in a modal (script.js
+             reads it from here, then removes this .section-action copy). -->
+        <details class="section-action section-more" data-next-action>
+          <summary><span class="section-action__label">See how 620 hp stays this quiet</span><span class="section-action__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span></summary>
+          <div class="section-more__body" data-more="performance">
+            <p class="more__eyebrow">Performance</p>
+            <h3 class="more__title">620 hp, delivered quietly.</h3>
+            <p class="more__intro">Two permanent-magnet motors and a low-slung battery give Aurelia GT the balance of a sports sedan with the composure of a flagship.</p>
+            <div class="more__hero gradient-c" aria-hidden="true"></div>
+            <div class="more__blocks">
+              <div class="more__block">
+                <div class="more__media gradient-f" aria-hidden="true"></div>
+                <p class="more__stat"><strong>2.9s</strong> <span>0&ndash;60 mph</span></p>
+                <h4>Dual motors, one feel</h4>
+                <p>Torque shifts between axles thousands of times a second, so power arrives smoothly whether the road is dry, wet or winding.</p>
+              </div>
+              <div class="more__block">
+                <div class="more__media gradient-b" aria-hidden="true"></div>
+                <p class="more__stat"><strong>50/50</strong> <span>weight balance</span></p>
+                <h4>Weight where it helps</h4>
+                <p>The 97&nbsp;kWh pack sits below the floor, for a low center of gravity and an even 50/50 balance front to rear.</p>
+              </div>
+              <div class="more__block">
+                <div class="more__media gradient-h" aria-hidden="true"></div>
+                <p class="more__stat"><strong>620&nbsp;mi</strong> <span>estimated range</span></p>
+                <h4>Range without compromise</h4>
+                <p>An efficient heat pump and a 0.198 drag coefficient keep 620 miles of estimated range, even with this much power on tap.</p>
+              </div>
+            </div>
+            <div class="more__next">
+              <p>Feel it for yourself.</p>
+              <a class="btn btn--primary" href="#shopping">Schedule a Test Drive</a>
+            </div>
+            <p class="more__footnote">Estimates based on internal testing. Actual results vary with conditions. Fictional product, created for a UX prototype.</p>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -109,6 +238,12 @@
       <div class="section__inner">
         <p class="eyebrow">Gallery</p>
         <h2>Aurelia GT, in detail</h2>
+        <!-- Next best action. Without JavaScript it's a plain link here; with
+             JavaScript the sticky surface carries it (script.js reads it from
+             [data-next-action] and removes this .section-action copy). -->
+        <p class="section-action">
+          <a class="btn btn--primary section-action__link" href="#shopping" data-next-action><span class="section-action__label">Build Your Own</span> <span aria-hidden="true">&rarr;</span></a>
+        </p>
       </div>
       <div class="media-grid media-grid--gallery">
         <div class="media-block gradient-a"></div>
@@ -126,7 +261,7 @@
         <h2>Configure your Aurelia GT</h2>
         <p class="lede">Build your own, search current inventory, or schedule time with a product specialist &mdash; in person or on a call.</p>
         <div class="hero__ctas">
-          <a class="btn btn--primary" href="#shopping">Search Inventory</a>
+          <a class="btn btn--primary" href="#shopping" data-next-action>Search Inventory</a>
           <a class="btn btn--ghost" href="#shopping">Schedule a Test Drive</a>
         </div>
       </div>

@@ -32,60 +32,42 @@
   ];
 
   // Scroll Spy's contextual mode: each section nominates its next best
-  // action. A "link" goes somewhere (→). A "more" opens deeper content on
-  // the section's own topic in a modal, in place (+): the Floating Show
-  // More Button pattern, where the button then becomes the modal's close.
-  const CONTEXTUAL_ACTIONS = {
-    hero: { kind: 'link', label: 'Schedule a Test Drive', href: '#shopping' },
-    overview: { kind: 'link', label: 'Schedule a Test Drive', href: '#shopping' },
-    design: { kind: 'link', label: 'Explore the Gallery', href: '#gallery' },
-    interior: { kind: 'more', label: 'Discover the cabin, up close', modal: 'interior' },
-    technology: { kind: 'more', label: 'Discover what DriveSense sees for you', modal: 'drivesense' },
-    performance: { kind: 'more', label: 'See how 620 hp stays this quiet', modal: 'performance' },
-    gallery: { kind: 'link', label: 'Build Your Own', href: '#shopping' },
-    shopping: { kind: 'link', label: 'Search Inventory', href: '#shopping' },
-  };
-  const contextualAction = (id) => CONTEXTUAL_ACTIONS[id] || CONTEXTUAL_ACTIONS.hero;
+  // action in the page's own markup ([data-next-action]), so it works with
+  // JavaScript off: a plain link, or a native <details> holding the full
+  // "show more" content. With JavaScript on, those are read here and the
+  // fallback copies (.section-action) removed; the sticky surface carries
+  // them instead. A link goes somewhere (→); a "more" opens that same
+  // content in a modal, in place (+), where the button becomes its close:
+  // the Floating Show More Button pattern.
+  const { actions: CONTEXTUAL_ACTIONS, more: MORE_CONTENT } = readSectionActions();
+  const contextualAction = (id) => CONTEXTUAL_ACTIONS[id] || CONTEXTUAL_ACTIONS.overview
+    || Object.values(CONTEXTUAL_ACTIONS)[0] || { kind: 'link', label: 'Schedule a Test Drive', href: '#shopping' };
 
-  // What the "more" actions open. Fictional content, consistent with the page.
-  const MORE_CONTENT = {
-    drivesense: {
-      eyebrow: 'DriveSense™ Assist',
-      title: 'It reads the road a quarter-mile ahead.',
-      intro: 'Long-range radar, eight cameras and live traffic data work together to anticipate what is coming, then smooth your speed and lane position before you would notice anything changed.',
-      hero: 'gradient-h',
-      blocks: [
-        { title: 'Sees further than you can', text: 'Slowdowns, merges and lane closures are picked up a quarter-mile out, so braking is gradual instead of sudden.', stat: '0.25 mi', statLabel: 'look-ahead', media: 'gradient-f' },
-        { title: 'Learns your commute', text: 'On routes you drive often, DriveSense remembers where traffic bunches up and starts easing off a little earlier each time.', stat: '8', statLabel: 'cameras, plus radar', media: 'gradient-c' },
-        { title: 'Better after you buy it', text: 'Updates arrive overnight. The latest added lane-change assist on divided highways and cut unnecessary braking by 30%.', stat: '30%', statLabel: 'less phantom braking', media: 'gradient-h' },
-      ],
-      footnote: 'DriveSense Assist is a driver-assistance feature and does not make the vehicle autonomous. Keep your hands on the wheel and your eyes on the road. Fictional product, created for a UX prototype.',
-    },
-    interior: {
-      eyebrow: 'Interior',
-      title: 'A cabin tuned like an instrument.',
-      intro: 'Every material was chosen for how it looks, feels and sounds over a long day of driving, and every surface you touch is finished by hand.',
-      hero: 'gradient-e',
-      blocks: [
-        { title: 'Open-pore wood, finished by hand', text: 'Sustainably sourced walnut or ash, left unlacquered so the grain stays warm to the touch.', stat: '11', statLabel: 'hours of hand finishing', media: 'gradient-d' },
-        { title: 'Seats that adjust with you', text: '22-way adaptive seats shift support through a long drive, with heating, ventilation and a five-program massage.', stat: '22-way', statLabel: 'adaptive seating', media: 'gradient-a' },
-        { title: 'Quiet you can hear', text: 'Acoustic glass and active noise cancellation cut outside noise by 40%, so the 17-speaker system never has to shout.', stat: '40%', statLabel: 'quieter cabin', media: 'gradient-g' },
-      ],
-      footnote: 'Materials and options vary by trim. Fictional product, created for a UX prototype.',
-    },
-    performance: {
-      eyebrow: 'Performance',
-      title: '620 hp, delivered quietly.',
-      intro: 'Two permanent-magnet motors and a low-slung battery give Aurelia GT the balance of a sports sedan with the composure of a flagship.',
-      hero: 'gradient-c',
-      blocks: [
-        { title: 'Dual motors, one feel', text: 'Torque shifts between axles thousands of times a second, so power arrives smoothly whether the road is dry, wet or winding.', stat: '2.9s', statLabel: '0–60 mph', media: 'gradient-f' },
-        { title: 'Weight where it helps', text: 'The 97 kWh pack sits below the floor, for a low center of gravity and an even 50/50 balance front to rear.', stat: '50/50', statLabel: 'weight balance', media: 'gradient-b' },
-        { title: 'Range without compromise', text: 'An efficient heat pump and a 0.198 drag coefficient keep 620 miles of estimated range, even with this much power on tap.', stat: '620 mi', statLabel: 'estimated range', media: 'gradient-h' },
-      ],
-      footnote: 'Estimates based on internal testing. Actual results vary with conditions. Fictional product, created for a UX prototype.',
-    },
-  };
+  function readSectionActions() {
+    const actions = {};
+    const more = {};
+    document.querySelectorAll('[data-next-action]').forEach((el) => {
+      const section = el.closest('section[id]');
+      if (!section) return;
+      const label = (el.querySelector('.section-action__label') || el).textContent.trim();
+      const body = el.tagName === 'DETAILS' && el.querySelector('[data-more]');
+      if (body) {
+        const key = body.dataset.more;
+        more[key] = {
+          eyebrow: body.querySelector('.more__eyebrow')?.textContent.trim() || label,
+          title: body.querySelector('.more__title')?.textContent.trim() || label,
+          node: body,
+        };
+        actions[section.id] = { kind: 'more', label, modal: key };
+      } else {
+        actions[section.id] = { kind: 'link', label, href: el.getAttribute('href') };
+      }
+    });
+    // The fallback copies go; ordinary page content that is also a section's
+    // next best action (Shopping's Search Inventory button) stays.
+    document.querySelectorAll('.section-action').forEach((el) => el.remove());
+    return { actions, more };
+  }
 
   const ROTATING_MESSAGES = [
     'Explore Formula 1',
@@ -1167,37 +1149,52 @@
 
   // The "more" button turning into the modal's close (and back): the label
   // clears, the button collapses to its icon, and the + turns into an ×.
+  // Every animation is cancelled once it finishes, so the class alone holds
+  // the end state (a lingering fill once kept the label hidden after close).
   function setCtaCloseState(open) {
     const el = $primary.querySelector('.cta-action--more');
     if (!el) return;
     cancelCtaMorph();
-    const label = el.querySelector('.cta-action__label');
-    const first = el.getBoundingClientRect().width;
-    el.classList.toggle('is-close', open);
     el.setAttribute('aria-expanded', String(open));
     if (open) el.setAttribute('aria-label', `Close: ${MORE_CONTENT[state.moreOpen].eyebrow}`);
     else el.removeAttribute('aria-label');
-    if (prefersReducedMotion) return;
-    const last = el.getBoundingClientRect().width;
-    el.classList.add('is-morphing');
+    const label = el.querySelector('.cta-action__label');
+    if (prefersReducedMotion) { el.classList.toggle('is-close', open); return; }
+
     const token = ++morphToken;
-    const anims = [
-      el.animate([{ width: `${first}px` }, { width: `${last}px` }], { duration: open ? 320 : 460, delay: open ? 60 : 0, easing: MORPH_EASE, fill: 'backwards' }),
-      open
-        ? label.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' })
-        : label.animate([{ opacity: 0, transform: 'translateX(8px)' }, { opacity: 1, transform: 'none' }], { duration: 240, delay: 240, easing: MORPH_EASE, fill: 'backwards' }),
-    ];
-    ctaMorph = { stage: 'in', anims };
-    Promise.all(anims.map((a) => a.finished)).then(() => {
-      if (token !== morphToken) return;
-      el.classList.remove('is-morphing');
-      ctaMorph = null;
+    const resize = () => {
+      if (token !== morphToken || !el.isConnected) return;
+      const first = el.getBoundingClientRect().width;
+      el.classList.toggle('is-close', open);
+      const last = el.getBoundingClientRect().width;
+      el.classList.add('is-morphing');
+      const anims = [el.animate([{ width: `${first}px` }, { width: `${last}px` }], { duration: open ? 300 : 460, easing: MORPH_EASE })];
       if (!open) {
-        // The page may have been resized under the modal; catch up.
-        if (el.dataset.key !== actionKey(contextualAction(state.activeSection))) morphContextualCta();
-        evaluateCrowding();
+        anims.push(label.animate([{ opacity: 0, transform: 'translateX(8px)' }, { opacity: 1, transform: 'none' }],
+          { duration: 240, delay: 240, easing: MORPH_EASE, fill: 'backwards' }));
       }
-    }, () => {});
+      ctaMorph = { stage: 'in', anims };
+      Promise.all(anims.map((a) => a.finished)).then(() => {
+        if (token !== morphToken) return;
+        anims.forEach((a) => a.cancel());
+        el.classList.remove('is-morphing');
+        ctaMorph = null;
+        if (!open) {
+          // The page may have been resized under the modal; catch up.
+          if (el.dataset.key !== actionKey(contextualAction(state.activeSection))) morphContextualCta();
+          evaluateCrowding();
+        }
+      }, () => {});
+    };
+
+    if (open) {
+      // Clear the label first, then collapse to the icon.
+      const fade = label.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
+      ctaMorph = { stage: 'in', anims: [fade] };
+      fade.finished.then(() => { resize(); fade.cancel(); }, () => {});
+    } else {
+      resize();
+    }
   }
 
   /* ---- The "show more" modal ---- */
@@ -1208,22 +1205,29 @@
   let moreOpenedAt = 0;
   let moreCloseTimer = null;
 
+  // The modal shows the same content the no-JS page has inline, cloned
+  // from the markup; only the heading levels move up (it's the dialog's
+  // own title now, not a sub-heading of the section).
   function renderMoreModal(c) {
+    const content = c.node.cloneNode(true);
+    const promote = (from, to) => content.querySelectorAll(from).forEach((old) => {
+      const el = document.createElement(to);
+      el.className = old.className;
+      el.append(...old.childNodes);
+      old.replaceWith(el);
+    });
+    promote('h3', 'h2');
+    promote('h4', 'h3');
+    const title = content.querySelector('.more__title');
+    title.id = 'moreModalTitle';
+    title.tabIndex = -1;
+    content.querySelectorAll('.more__next a').forEach((a) => a.addEventListener('click', () => {
+      log('cta_clicked', `${a.textContent.trim()} (from show more)`);
+      closeMoreModal('next step', { instant: true });
+    }));
     $moreCard.replaceChildren(
       h('button', { type: 'button', class: 'more-modal__x', 'aria-label': 'Close', innerHTML: closeIcon(), onclick: () => closeMoreModal('close button') }),
-      h('p', { class: 'more-modal__eyebrow', text: c.eyebrow }),
-      h('h2', { class: 'more-modal__title', id: 'moreModalTitle', tabIndex: -1, text: c.title }),
-      h('p', { class: 'more-modal__intro', text: c.intro }),
-      h('div', { class: `more-modal__hero ${c.hero}`, 'aria-hidden': 'true' }),
-      h('div', { class: 'more-modal__blocks' }, c.blocks.map((b) => h('section', { class: 'more-modal__block' },
-        h('div', { class: `more-modal__media ${b.media}`, 'aria-hidden': 'true' }),
-        h('p', { class: 'more-modal__stat' }, h('strong', { text: b.stat }), h('span', { text: b.statLabel })),
-        h('h3', { text: b.title }),
-        h('p', { text: b.text })))),
-      h('div', { class: 'more-modal__next' },
-        h('p', { text: 'Feel it for yourself.' }),
-        h('a', { class: 'btn btn--primary', href: '#shopping', text: 'Schedule a Test Drive', onclick: () => { log('cta_clicked', 'Schedule a Test Drive (from show more)'); closeMoreModal('next step', { instant: true }); } })),
-      h('p', { class: 'more-modal__footnote', text: c.footnote }));
+      ...content.childNodes);
   }
 
   function lockPage(lock) {

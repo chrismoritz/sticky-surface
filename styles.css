@@ -632,7 +632,7 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .cta-action.is-close { padding: 5px; gap: 0; }
 .cta-action.is-close .cta-action__label { display: none; }
 .cta-action.is-close .cta-action__icon svg { transform: rotate(45deg); }
-@media (prefers-reduced-motion: reduce) { .cta-action__icon svg { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .cta-action__icon svg, .section-action__icon svg { transition: none; } }
 
 /* Manual rotator */
 .rotator { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -1310,25 +1310,62 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   background: #e6e5e2; color: var(--ink);
 }
 .more-modal__x:hover { background: #dcdad6; }
-.more-modal__eyebrow { margin: 0 0 10px; font-size: .8rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--grey-600); }
-.more-modal__title { margin: 0; font-size: clamp(1.9rem, 4.4vw, 3rem); line-height: 1.08; letter-spacing: -.02em; max-width: 16ch; }
-.more-modal__title:focus { outline: none; }
-.more-modal__title:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 4px; }
-.more-modal__intro { margin: 18px 0 0; font-size: 1.08rem; line-height: 1.55; color: var(--grey-600); max-width: 58ch; }
-.more-modal__hero { margin: 40px 0 0; height: clamp(180px, 30vw, 300px); border-radius: 20px; }
-.more-modal__blocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 44px; }
-.more-modal__block h3 { margin: 6px 0 6px; font-size: 1.02rem; }
-.more-modal__block p { margin: 0; font-size: .92rem; line-height: 1.55; color: var(--grey-600); }
-.more-modal__media { height: 120px; border-radius: 14px; margin-bottom: 16px; }
-.more-modal__stat { display: flex; align-items: baseline; gap: 8px; }
-.more-modal__block .more-modal__stat strong { font-size: 1.5rem; color: var(--ink); letter-spacing: -.01em; }
-.more-modal__block .more-modal__stat span { font-size: .78rem; }
-.more-modal__next {
+.more-modal__card .more__title:focus { outline: none; }
+.more-modal__card .more__title:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 4px; }
+
+/* "Show more" content: shared by the modal (JavaScript on) and the inline
+   disclosure in each section (JavaScript off), from the same markup. */
+.more__eyebrow { margin: 0 0 10px; font-size: .8rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--grey-600); }
+.more__title { margin: 0; font-size: clamp(1.9rem, 4.4vw, 3rem); line-height: 1.08; letter-spacing: -.02em; max-width: 16ch; }
+.more__intro { margin: 18px 0 0; font-size: 1.08rem; line-height: 1.55; color: var(--grey-600); max-width: 58ch; }
+.more__hero { margin: 40px 0 0; height: clamp(180px, 30vw, 300px); border-radius: 20px; }
+.more__blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 28px; margin-top: 44px; }
+.more__block h3, .more__block h4 { margin: 6px 0 6px; font-size: 1.02rem; }
+.more__block p { margin: 0; font-size: .92rem; line-height: 1.55; color: var(--grey-600); }
+.more__media { height: 120px; border-radius: 14px; margin-bottom: 16px; }
+.more__stat { display: flex; align-items: baseline; gap: 8px; }
+.more__block .more__stat strong { font-size: 1.5rem; color: var(--ink); letter-spacing: -.01em; }
+.more__block .more__stat span { font-size: .78rem; }
+.more__next {
   margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--line);
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
 }
-.more-modal__next p { margin: 0; font-size: 1.1rem; font-weight: 600; }
-.more-modal__footnote { margin: 28px 0 0; font-size: .74rem; line-height: 1.5; color: var(--grey-500); }
+.more__next p { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.more__footnote { margin: 28px 0 0; font-size: .74rem; line-height: 1.5; color: var(--grey-500); }
+
+/* -------- No-JavaScript fallbacks --------
+   Each section's next best action, in the page itself: a link, or a native
+   disclosure that opens the show-more content inline (keyboard and screen
+   reader support come with <details>). With JavaScript on they're hidden
+   before first paint and then removed; the sticky surface carries them. */
+.js .section-action { display: none; }
+.section-action { margin: 32px 0 0; }
+.section-action__link { gap: 8px; }
+.section-more { text-align: left; }
+.section-more > summary {
+  list-style: none; cursor: pointer; width: fit-content; margin: 0 auto;
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 5px 5px 18px; min-height: 38px; border-radius: var(--radius-pill);
+  background: #ecebe8; color: var(--ink); font-size: .92rem; font-weight: 600;
+}
+.section-more > summary::-webkit-details-marker { display: none; }
+.section-more > summary:hover { background: #e2e0dc; }
+.section-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.section-action__icon {
+  flex: none; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--ink); color: #fff;
+}
+.section-action__icon svg { transition: transform 320ms cubic-bezier(.2,.8,.2,1); }
+.section-more[open] > summary .section-action__icon svg { transform: rotate(45deg); }
+.section-more__body {
+  margin-top: 20px; padding: 40px clamp(20px, 5vw, 48px);
+  background: #f5f5f3; border-radius: 24px; text-align: left;
+}
+.section-more__body .more__title { font-size: clamp(1.6rem, 3.6vw, 2.3rem); }
+.section-more__body .more__hero { margin-top: 28px; }
+/* The prototype's controls need JavaScript too; without it they'd do nothing. */
+html:not(.js) .panel-toggle { display: none; }
+
 @media (max-width: 720px) {
   /* The sheet covers the page, so the Prototype Controls pill steps aside
      while it's open (either close brings it back). */
@@ -1336,8 +1373,8 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   /* A full-height sheet on phones. */
   .more-modal__scroller { padding: 12px 0 0; }
   .more-modal__card { border-radius: 22px 22px 0 0; padding: 56px 22px 130px; min-height: calc(100% - 12px); }
-  .more-modal__blocks { grid-template-columns: 1fr; gap: 26px; margin-top: 32px; }
-  .more-modal__hero { margin-top: 28px; }
+  .more__blocks { grid-template-columns: 1fr; gap: 26px; margin-top: 32px; }
+  .more__hero { margin-top: 28px; }
   .more-modal__x { top: 12px; right: 12px; }
 }
 

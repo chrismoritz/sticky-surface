@@ -111,7 +111,7 @@ To run it yourself — no build step, no dependencies — any of these work:
 
 Everything lives in three files:
 
-- `index.html` — the fake product page + the one sticky component + the control panel markup
+- `index.html` — the fake product page (including each section's next best action, which works without JavaScript) + the one sticky component + the control panel markup
 - `styles.css` — all visual states (presentation, surface, entrance, responsive breakpoints)
 - `script.js` — state, rendering, orchestration and sequencing, the multi-step quote form, demo notes, event log
 
@@ -360,6 +360,19 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
 
 ### Accessibility and interaction
 
+- **The next best actions work without JavaScript.** Each section's action
+  lives in the page's own markup, marked `data-next-action`: a plain link
+  (Explore the Gallery, Build Your Own), or a native `<details>` disclosure
+  holding the full "show more" content inline (DriveSense, Interior,
+  Performance). Without JavaScript, or before it loads, visitors and
+  assistive technology get them in place, with keyboard and screen-reader
+  support built into `<details>`. With JavaScript, a class set in the
+  `<head>` hides them before first paint; the script then reads each action
+  and its content from that markup, removes the fallback copies, and the
+  floating button takes over. The modal shows a clone of the same content,
+  so there's one source for both. Links that are already page content
+  (Shopping's Search Inventory) stay put. The prototype's own controls are
+  hidden without JavaScript, since they'd do nothing.
 - **Popovers behave like popovers.** Escape and clicking away close them,
   and focus returns somewhere sensible — deliberately not into the chat
   field, which would count as reopening chat.
