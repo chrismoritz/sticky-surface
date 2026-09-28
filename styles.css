@@ -519,7 +519,7 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   padding: 8px 12px; border-radius: var(--radius-pill); cursor: pointer; white-space: nowrap;
 }
 .primary-nav button:hover { color: var(--ink); background: var(--mist); }
-.primary-nav button[aria-current="true"] { color: var(--ink); background: var(--mist); font-weight: 600; }
+.primary-nav button[aria-current] { color: var(--ink); background: var(--mist); font-weight: 600; }
 .primary-nav__more {
   background: none; border: 1px dashed var(--line-strong); font: inherit; font-size: .82rem; color: var(--grey-600);
   padding: 7px 12px; border-radius: var(--radius-pill); cursor: pointer; white-space: nowrap; flex: 0 0 auto;
@@ -707,10 +707,40 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .sticky__flyout[data-kind="chat"] { border-top-color: var(--chat); }
 .sticky__flyout[data-kind="search"] { border-top-color: var(--search); }
 .sticky__flyout[data-kind="quote"] { border-top-color: var(--quote); }
+.sticky__flyout[data-kind="survey"] { border-top-color: var(--survey); }
 .flyout-title { margin: 0 0 10px; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--grey-500); }
 .sticky__flyout[data-kind="chat"] .flyout-title { color: var(--chat); }
 .sticky__flyout[data-kind="search"] .flyout-title { color: var(--search); }
 .sticky__flyout[data-kind="quote"] .flyout-title { color: var(--quote); }
+.sticky__flyout[data-kind="survey"] .flyout-title { color: var(--survey); }
+
+/* -------- One-question survey (inside the flyout) -------- */
+.survey-flow { width: min(480px, 100%); margin: 0 auto; }
+.survey-flow input[type="radio"] { accent-color: var(--survey); }
+.survey-scale { border: none; margin: 0; padding: 0; }
+.survey-question { padding: 0; margin: 0 0 10px; font-size: .95rem; font-weight: 600; }
+.survey-question:focus { outline: none; }
+.survey-scale__options { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.survey-scale__option {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  min-height: 44px; cursor: pointer; font-weight: 600; font-size: .95rem;
+  background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+/* The real radio stays in place (keyboard + screen readers), just invisible;
+   the whole tile is its hit area. */
+.survey-scale__option input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.survey-scale__option:hover { border-color: var(--survey-border); }
+.survey-scale__option:has(input:checked) { background: var(--survey); border-color: var(--survey); color: #fff; }
+.survey-scale__option:has(input:focus-visible) { outline: 2px solid var(--survey); outline-offset: 2px; }
+.survey-scale.is-invalid .survey-scale__option { border-color: var(--danger); }
+.survey-scale__ends { display: flex; justify-content: space-between; margin-top: 6px; font-size: .72rem; color: var(--grey-500); }
+.survey-scale .qf-error { margin: 6px 0 0; }
+.survey-flow .qf textarea { min-height: 64px; }
+.survey-flow .qf textarea:focus-visible { outline-color: var(--survey); }
+.survey-nav { display: flex; justify-content: flex-end; margin-top: 12px; }
+.survey-nav .btn--primary { background: var(--survey); }
+.survey-nav .btn--primary:hover { background: #532f80; }
 .flyout-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .flyout-chips button {
   border: 1px solid var(--line-strong); background: #fff; border-radius: var(--radius-pill);
@@ -731,6 +761,7 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .sticky__flyout[data-kind="quote"] {
   max-height: min(64vh, 580px); overflow-y: auto; overscroll-behavior: contain; padding-bottom: 0;
 }
+.sticky__flyout[data-kind="survey"] { max-height: min(64vh, 580px); overflow-y: auto; overscroll-behavior: contain; }
 /* A pill can't hold a form — compact softens to a rounded card while a
    flyout is open, the same way it does for a prompt on phones. */
 .sticky[data-presentation="compact"]:has(.sticky__flyout:not([hidden])) .sticky__surface { border-radius: var(--radius-lg); }
@@ -879,6 +910,9 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   .chat-input-field, .search-field { min-width: 0; }
   .device-badge { display: none; }
   .primary-nav { max-width: 46vw; }
+  /* The cap only exists to leave room for chat/search — with the bar to
+     itself, the section strip can use the full width. */
+  .sticky__bar:not(:has(.sticky__utilities > *)) .primary-nav { max-width: none; }
 }
 
 @media (max-width: 480px) {

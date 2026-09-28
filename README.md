@@ -20,7 +20,7 @@ top of and scroll against.
 - [Why this exists](#why-this-exists) — the problem at the bottom of the screen
 - [The strategy](#the-strategy) — one shared surface, with rules
 - [Try it](#try-it) — live site, or run it locally
-- [Demoing it live](#demoing-it-live) — the ten-step Demo Flow, presets, presenter tools
+- [Demoing it live](#demoing-it-live) — the thirteen-step Demo Flow, presets, presenter tools
 - [Tactical decisions](#tactical-decisions) — how the strategy became specific design and engineering choices
 - [Roadmap: V1, V2, V3](#roadmap-v1-v2-v3) — what's proposed now vs. later
 - [Measuring success](#measuring-success) — proposed pilot metrics
@@ -136,25 +136,34 @@ you pick a preset by hand.
    component adapting its shell.
 5. **Message Rotation (V2)** — several messages share one slot and rotate
    on a timer, pausing while the bar is hovered or focused.
-6. **Scroll Spy (V2)** — the Scroll Spy preset, starting from the top of the
-   page: scroll down and the CTA changes (and cross-fades) to match each
-   section — Design, Interior, Technology, Performance, Shopping. Its demo
-   note updates live ("Right now: Interior → 'Interior Features'"). The
-   Scroll Spy panel section also has orientation and section-navigation
-   modes.
-7. **Chat & Search** — the Chat + Search preset: both utilities side by
+6. **Scroll Spy: Contextual CTA (V2)** — the Scroll Spy preset, starting
+   from the top of the page: scroll down and the CTA changes (and
+   cross-fades) to match each section — Design, Interior, Technology,
+   Performance, Shopping. Its demo note updates live ("Right now: Interior →
+   'Interior Features'").
+7. **Scroll Spy: Section Nav (V2)** — the same scroll tracking, used for
+   on-page navigation instead: the bar holds links to the page's sections.
+   Click one and the page scrolls straight to it; scroll by hand and the
+   highlight follows. The note names the section you're in.
+8. **Chat & Search** — the Chat + Search preset: both utilities side by
    side, each in its own color. Focus the chat field or open Search and the
    whole surface tints to match; Esc or clicking away closes things.
-8. **Timed Notice** — an ancillary partner message (a satellite-radio free
+9. **Timed Notice** — an ancillary partner message (a satellite-radio free
    listening weekend) arrives after the Prompt delay and closes itself when
    the line along the top of the bar runs out. Hover or focus the bar to
    pause it.
-9. **Intercept Prompts** — the Survey → Quote Handoff preset. The readout
-   counts down; the Survey arrives after the Prompt delay, then the
-   returning-visitor Quote animates over it. Click **Get My Quote** to walk
-   the four-step request form. Dismiss the Quote and the Survey comes back
-   after a short beat.
-10. **Orchestration** — shows the privacy notice immediately and schedules
+10. **Survey Takeover** — the survey arrives after the Prompt delay and
+   takes over the bar in violet. **Take Survey** opens a one-question survey
+   inside the surface (a 1–5 rating and an optional comment). Send it or
+   dismiss it and the original content comes back.
+11. **Quote Takeover** — a returning-visitor quote prompt arrives after the
+   Prompt delay and takes over in green. **Get My Quote** opens the
+   four-step request form; closing it keeps your progress.
+12. **Survey vs. Quote** — both prompts, a few seconds apart. The readout
+   counts down; the Survey arrives first, then the Quote animates over it
+   because it outranks it. Dismiss the Quote and the Survey comes back after
+   a short beat.
+13. **Orchestration** — shows the privacy notice immediately and schedules
    a Survey and a Quote prompt behind it. When they land, privacy still wins
    and they wait ("…_triggered — waiting"). Accept the notice and the Quote
    follows after a short beat; dismiss the Quote and the Survey follows
@@ -168,7 +177,7 @@ anchored to the element being demonstrated — the bar, the chat field, the
 privacy notice, the quote form, the chaos widgets — each explaining **how
 it works** and **why it matters** (for the Current State and chaos
 comparison: how it works today, and the problem). They follow live state
-rather than just the preset: in the Intercept Prompts step the note changes
+rather than just the preset: in the Survey vs. Quote step the note changes
 from "Survey on its way" to "The survey takes over" to "Quote outranks
 Survey" as each moment lands, and opening the quote form, the chat window,
 or the privacy notice brings up a note about that.
@@ -268,8 +277,21 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
   sits just above the bar. A footer can't hold a conversation, and a bubble
   on its own is easy to miss.
 - **One panel, several occupants.** Search results, suggested chat prompts,
-  and the quote form all open in the same panel above the bar, so there's
-  one pattern to learn and one space to govern.
+  the survey, and the quote form all open in the same panel above the bar,
+  so there's one pattern to learn and one space to govern.
+- **The survey is answered in place.** Take Survey opens a one-question
+  rating (1–5, plus an optional comment) in that panel rather than a vendor
+  popup or a new tab. A stray click doesn't close it or lose the answer; if
+  the Quote needs the space, the survey steps aside and comes back with the
+  rating still picked. Sending it shows a brief thank-you, then the original
+  content returns.
+- **Scroll tracking doubles as on-page navigation.** The same section
+  tracking that drives the contextual CTA can instead put section links in
+  the bar: clicking one scrolls to it, the current section stays
+  highlighted (and marked for screen readers) as the visitor scrolls, and on
+  phones the link strip slides sideways to keep the current section in view.
+  The highlight goes straight to the chosen section instead of flickering
+  through every section passed on the way.
 
 ### Lead capture
 
@@ -340,7 +362,8 @@ for a pilot:
 | Is the surface earning its space? | Click-through on the surface vs. today's footer (`cta_clicked`), broken down by composition and presentation |
 | Does chat get used more as a built-in entry point than as a bubble? | Conversations started (`chat_opened`), and from which entry point |
 | Where does the quote form lose people? | Step-by-step funnel (`quote_step`), which fields fail validation (`quote_validation`), and completions (`quote_submitted`) |
-| Are prompts welcome, or just tolerated? | Dismissals vs. engagement (`survey_dismissed`, `quote_dismissed` vs. `quote_submitted`), and how often a prompt had to wait its turn (`…_triggered — waiting`) |
+| Are prompts welcome, or just tolerated? | Dismissals vs. engagement (`survey_dismissed` vs. `survey_submitted`, `quote_dismissed` vs. `quote_submitted`), and how often a prompt had to wait its turn (`…_triggered — waiting`) |
+| Does section navigation help people find things? | Jumps from the bar (`section_changed — nav click`), scroll depth, and whether survey ratings for "easy to find" go up |
 | Does targeting pay off? | Quote completion for returning, high-intent visitors vs. a prompt shown to everyone |
 | Do timed notices get noticed? | How notices end (`notice_closed`: acted on, dismissed, timed out, or dropped for a higher-priority prompt), and whether the pause-on-hover gets used |
 
@@ -661,7 +684,7 @@ data; there's no backend.
 ### Timed notices that close themselves
 
 Not every message deserves a dismiss button that someone has to find. The
-**Timed Notice** scenario (Demo Flow step 8, the Timed Notice preset, or
+**Timed Notice** scenario (Demo Flow step 9, the Timed Notice preset, or
 **Orchestration Demos → Show Timed Notice**) uses an ancillary partner
 message — "Free listening weekend: Starwave Satellite Radio is on in every
 Aurelia GT through Sunday," from a fictional satellite-radio provider — to

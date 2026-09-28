@@ -156,7 +156,8 @@
       hint: 'Design | Interior | Technology | Performance',
       version: 'v2',
       group: 'compositions',
-      patch: { legacyMode: false, scrollSpy: 'navigation', chat: 'off', search: 'off' },
+      patch: { legacyMode: false, presentation: 'floating', scrollSpy: 'navigation', chat: 'off', search: 'off' },
+      note: 'Click a section to jump to it; the highlight follows as you scroll the page.',
     },
     {
       id: 'survey-integration',
@@ -225,7 +226,7 @@
     },
     {
       id: 'scroll-spy',
-      label: 'Scroll Spy',
+      label: 'Scroll Spy: Contextual CTA',
       hint: 'The CTA follows the section in view',
       version: 'v2',
       group: 'compositions',
@@ -367,6 +368,8 @@
     pendingNotice: false,
     noticeDuration: 'standard',
     quoteDraft: null, // in-progress multi-step quote form (survives closing the panel)
+    surveyDraft: null, // the one-question survey's answers while it's showing
+    surveySubmitted: false,
     vehicleInterest: null, // vehicle the visitor clicked in search results, used to pre-fill the quote
 
     rotationPaused: false,
@@ -461,6 +464,7 @@
     if (state.activeInteraction === 'search') return 'Active interaction — Search';
     if (state.flyout === 'chat') return 'Requested utility — Chat prompts open';
     if (state.flyout === 'quote') return 'Requested utility — Quote form open';
+    if (state.flyout === 'survey') return 'Requested utility — Survey open';
     if (state.flyout === 'search' || state.flyout === 'nav-overflow') return 'Requested utility — open';
     if (state.quoteActive) return 'Lead capture — Request a Quote';
     if (state.surveyActive) return 'Survey / optional engagement';
@@ -483,6 +487,7 @@
     if (state.activeInteraction === 'search') return 'search';
     if (state.flyout === 'chat') return 'chat';
     if (state.flyout === 'quote') return 'quote';
+    if (state.flyout === 'survey') return 'survey';
     if (state.flyout === 'search') return 'search';
     if (state.quoteActive) return 'quote';
     if (state.surveyActive) return 'survey';
@@ -613,9 +618,21 @@
     takeSurvey.type = 'button';
     takeSurvey.className = 'btn btn--primary btn--small';
     takeSurvey.textContent = 'Take Survey';
+    takeSurvey.setAttribute('aria-controls', 'stickyFlyout');
+    takeSurvey.setAttribute('aria-expanded', String(state.flyout === 'survey'));
+    // Opens the survey in place — in the same panel as chat prompts and the
+    // quote form — rather than a new tab or a vendor modal.
     takeSurvey.addEventListener('click', () => {
-      log('cta_clicked', 'take_survey (mock)');
-      dismissSurvey();
+      const first = $surface.getBoundingClientRect();
+      if (state.flyout === 'survey') {
+        closeFlyout();
+        animateSurfaceResize(first);
+        return;
+      }
+      log('cta_clicked', 'take_survey');
+      openFlyout('survey');
+      animateSurfaceResize(first);
+      document.getElementById('surveyQuestion')?.focus({ preventScroll: true });
     });
     wrap.appendChild(takeSurvey);
 
@@ -714,8 +731,13 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = s.label;
-      if (state.activeSection === s.id) btn.setAttribute('aria-current', 'true');
+      if (state.activeSection === s.id) btn.setAttribute('aria-current', 'location');
       btn.addEventListener('click', () => {
+        // Highlight the destination right away and hold it there while the
+        // page scrolls, instead of flickering through every section passed.
+        navLock = { id: s.id, until: performance.now() + 1600 };
+        state.activeSection = s.id;
+        renderPrimary();
         document.getElementById(s.id).scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
         log('section_changed', `nav click → ${s.label}`);
       });
@@ -733,6 +755,14 @@
     }
 
     $primary.appendChild(nav);
+
+    // Where the strip scrolls sideways (phones), keep the highlighted link in view.
+    const current = nav.querySelector('[aria-current]');
+    if (current && nav.scrollWidth > nav.clientWidth) {
+      const nr = nav.getBoundingClientRect();
+      const cr = current.getBoundingClientRect();
+      nav.scrollLeft += (cr.left + cr.width / 2) - (nr.left + nr.width / 2);
+    }
   }
 
   function openNavOverflow() {
@@ -1240,6 +1270,8 @@
       renderSearchResults('');
     } else if (kind === 'quote') {
       renderQuoteForm();
+    } else if (kind === 'survey') {
+      renderSurveyForm();
     }
     renderActiveLayer();
     syncQuoteCta();
@@ -1439,6 +1471,8 @@
   // The prompt's button is rendered once per takeover, so keep its label and
   // expanded state in step with the panel as it opens and closes.
   function syncQuoteCta() {
+    const survey = $primary.querySelector('.primary-prompt--survey .btn--primary');
+    if (survey) survey.setAttribute('aria-expanded', String(state.flyout === 'survey'));
     const btn = $primary.querySelector('.primary-prompt--quote .btn--primary');
     if (!btn) return;
     btn.setAttribute('aria-expanded', String(state.flyout === 'quote'));
@@ -1447,6 +1481,85 @@
 
   function focusQuoteHeading() {
     document.getElementById('quoteStepHeading')?.focus({ preventScroll: true });
+  }
+
+  /* ------------------------------------------------------------------ *
+   * One-question intercept survey — what "Take Survey" opens.
+   * ------------------------------------------------------------------ */
+
+  const SURVEY_SCALE = { 1: 'Very difficult', 2: 'Difficult', 3: 'Neither easy nor difficult', 4: 'Easy', 5: 'Very easy' };
+  const SURVEY_CONFIRM_MS = 2200;
+
+  function renderSurveyForm(opts = {}) {
+    const first = opts.animate ? $surface.getBoundingClientRect() : null;
+    $flyout.innerHTML = '';
+    if (!state.surveyDraft) state.surveyDraft = { rating: null, comment: '', error: null };
+    const d = state.surveyDraft;
+
+    if (state.surveySubmitted) {
+      $flyout.append(h('div', { class: 'survey-flow quote-done', role: 'status' },
+        h('p', { class: 'flyout-title', text: 'Thank you' }),
+        h('p', { class: 'quote-done__msg', text: 'Your feedback goes straight to the team that builds this site.' })));
+      animateSurfaceResize(first);
+      return;
+    }
+
+    $flyout.append(h('form', {
+      class: 'survey-flow', noValidate: true,
+      onsubmit: (e) => { e.preventDefault(); submitSurvey(); },
+    },
+    h('p', { class: 'flyout-title', text: 'Quick survey · 1 question' }),
+    h('fieldset', { class: `survey-scale${d.error ? ' is-invalid' : ''}`, 'aria-describedby': d.error ? 'surveyError' : null },
+      h('legend', { class: 'survey-question', id: 'surveyQuestion', tabIndex: -1, text: 'How easy was it to find what you were looking for today?' }),
+      h('div', { class: 'survey-scale__options' },
+        Object.entries(SURVEY_SCALE).map(([n, label]) => h('label', { class: 'survey-scale__option' },
+          h('input', {
+            type: 'radio', name: 'survey-rating', value: n, checked: d.rating === Number(n),
+            'aria-label': `${n} — ${label}`,
+            onchange: () => {
+              d.rating = Number(n);
+              if (d.error) { d.error = null; document.getElementById('surveyError')?.remove(); $flyout.querySelector('.survey-scale')?.classList.remove('is-invalid'); }
+            },
+          }),
+          h('span', { 'aria-hidden': 'true', text: n })))),
+      h('div', { class: 'survey-scale__ends', 'aria-hidden': 'true' }, h('span', { text: SURVEY_SCALE[1] }), h('span', { text: SURVEY_SCALE[5] })),
+      d.error ? h('p', { class: 'qf-error', id: 'surveyError', role: 'alert', text: d.error }) : null),
+    h('div', { class: 'qf qf--notes' },
+      h('label', { htmlFor: 'surveyComment' }, 'Anything we could do better? ', h('span', { class: 'qf-opt', text: '(optional)' })),
+      h('textarea', { id: 'surveyComment', value: d.comment, oninput: (e) => { d.comment = e.target.value; } })),
+    h('div', { class: 'survey-nav' },
+      h('button', { type: 'submit', class: 'btn btn--primary btn--small', text: 'Send feedback' }))));
+
+    animateSurfaceResize(first);
+    // The error is announced (role=alert) and linked via aria-describedby;
+    // focus goes to the radio group so the arrow keys pick a rating directly.
+    if (opts.focus === 'error') $flyout.querySelector('input[name="survey-rating"]')?.focus();
+  }
+
+  function submitSurvey() {
+    const d = state.surveyDraft;
+    if (!d.rating) {
+      d.error = 'Choose a rating from 1 to 5.';
+      log('survey_validation', 'rating missing');
+      renderSurveyForm({ animate: true, focus: 'error' });
+      return;
+    }
+    state.surveySubmitted = true;
+    log('survey_submitted', `rating ${d.rating}/5 (${SURVEY_SCALE[d.rating]})${d.comment.trim() ? ' + comment' : ''}`);
+    renderSurveyForm({ animate: true });
+    // Same pattern as the quote: long enough to read the thank-you, then
+    // the survey hands the space back on its own.
+    setTimeout(() => {
+      if (!state.surveyActive || !state.surveySubmitted) return;
+      state.surveyActive = false;
+      state.surveySubmitted = false;
+      state.surveyDraft = null;
+      closeFlyout();
+      restoreCompositionIfIdle();
+      swapPrimary(true);
+      renderActiveLayer();
+      maybeReleasePendingOverlays();
+    }, SURVEY_CONFIRM_MS);
   }
 
   function renderQuoteForm(opts = {}) {
@@ -2004,6 +2117,9 @@
 
   function dismissSurvey() {
     state.surveyActive = false;
+    state.surveyDraft = null;
+    state.surveySubmitted = false;
+    if (state.flyout === 'survey') closeFlyout();
     restoreCompositionIfIdle();
     log('survey_dismissed');
     swapPrimary(true);
@@ -2029,8 +2145,14 @@
 
     if (state.surveyActive) {
       state.surveyActive = false;
-      state.pendingSurvey = true;
-      log('survey_preempted', 'quote prompt has priority');
+      if (state.surveySubmitted) {
+        // Already answered — nothing to bring back afterward.
+        state.surveySubmitted = false;
+        state.surveyDraft = null;
+      } else {
+        state.pendingSurvey = true;
+        log('survey_preempted', 'quote prompt has priority');
+      }
     }
     dropNoticeFor('quote prompt');
 
@@ -2250,6 +2372,7 @@
     .filter((el, i, arr) => el && arr.indexOf(el) === i);
 
   let scrollTicking = false;
+  let navLock = null;
   function onScroll() {
     if (scrollTicking) return;
     scrollTicking = true;
@@ -2291,6 +2414,12 @@
       if (rect.top <= window.innerHeight * 0.5) best = secEl.id;
     });
     if (best) current = best;
+    // After a section-nav click, hold the highlight on the destination until
+    // the page arrives (or a moment passes, if it can't scroll that far).
+    if (navLock) {
+      if (best === navLock.id || performance.now() > navLock.until) navLock = null;
+      else current = state.activeSection;
+    }
 
     if (current !== state.activeSection) {
       state.activeSection = current;
@@ -2335,6 +2464,8 @@
       pendingQuote: false,
       noticeActive: false,
       pendingNotice: false,
+      surveyDraft: null,
+      surveySubmitted: false,
       priorComposition: null,
       minimized: false,
       dismissed: false,
@@ -2530,11 +2661,14 @@
     3: 'Same component, new content every time — click through the presets below.',
     4: 'Same content, different shell — try Full-width / Floating / Compact and the surface finishes.',
     5: 'Several messages share one slot and rotate on a timer, pausing while you hover or focus the bar.',
-    6: 'Scroll the page: the CTA changes to match the section in view, cross-fading as it swaps. The Scroll Spy section below also has orientation and section-navigation modes.',
-    7: 'Each utility has its own color. Focus the chat field (blue) or open Search (teal) and the whole surface tints to match. Esc or clicking away closes things.',
-    8: 'A partner message (a satellite-radio free weekend) arrives after the Prompt delay and closes itself when the line along the top runs out. Hover or focus the bar to pause it.',
-    9: 'Watch the readout at the top count down. The Survey arrives after the Prompt delay, then the returning-visitor Quote animates over it — click Get My Quote to walk the four-step form. Dismiss the Quote and the Survey comes back.',
-    10: 'Privacy shows first and wins; the Survey and Quote are scheduled behind it. Accept the notice and the Quote follows after a short beat, then the Survey after that.',
+    6: 'Scroll the page: the CTA changes to match the section in view, cross-fading as it swaps.',
+    7: 'Section links in the bar: click one to jump straight to that part of the page. The highlight follows as you scroll.',
+    8: 'Each utility has its own color. Focus the chat field (blue) or open Search (teal) and the whole surface tints to match. Esc or clicking away closes things.',
+    9: 'A partner message (a satellite-radio free weekend) arrives after the Prompt delay and closes itself when the line along the top runs out. Hover or focus the bar to pause it.',
+    10: 'The survey arrives after the Prompt delay and takes over the bar (violet). Take Survey opens a one-question survey in place; answer it or dismiss it and the original content comes back.',
+    11: 'A returning-visitor quote prompt arrives after the Prompt delay and takes over the bar (green). Get My Quote opens the four-step request form; progress is kept if you close it.',
+    12: 'Both prompts, a few seconds apart: the Survey arrives first, then the Quote takes over because it outranks it. Dismiss the Quote and the Survey comes back.',
+    13: 'Privacy shows first and wins; the Survey and Quote are scheduled behind it. Accept the notice and the Quote follows after a short beat, then the Survey after that.',
   };
   const $flowNote = document.getElementById('flowNote');
 
@@ -2599,28 +2733,31 @@
         openPanel();
         break;
       case 6:
-        applyPreset('scroll-spy');
-        // Start at the top so scrolling down walks through every section.
+      case 7:
+        applyPreset(step === 6 ? 'scroll-spy' : 'section-navigator');
+        // Start at the top so scrolling (or jumping) walks through every section.
         window.scrollTo({ top: 0, behavior: 'instant' });
         openPanelSections([7]); // Scroll Spy
         openPanel();
         break;
-      case 7:
+      case 8:
         applyPreset('chat-search');
         openPanelSections([0]); // Content Presets — shows the "Chat & search" group
         openPanel();
         break;
-      case 8:
+      case 9:
         applyPreset('timed-notice');
         openPanelSections([9]); // Orchestration Demos — notice duration + trigger
         openPanel();
         break;
-      case 9:
-        applyPreset('survey-quote-handoff');
+      case 10:
+      case 11:
+      case 12:
+        applyPreset({ 10: 'survey-integration', 11: 'quote-prompt', 12: 'survey-quote-handoff' }[step]);
         openPanelSections([9]); // Orchestration Demos — the Prompt delay control
         openPanel();
         break;
-      case 10:
+      case 13:
         applyPreset('stress-test');
         openPanelSections([8, 9]); // Busy/Overflow Edge Cases, Orchestration Demos
         openPanel();
@@ -2804,7 +2941,7 @@
   // form is exempt: an accidental click shouldn't throw away what someone
   // has typed — Escape or the prompt's × still close it deliberately.
   document.addEventListener('pointerdown', (e) => {
-    if (!state.flyout || state.flyout === 'quote') return;
+    if (!state.flyout || state.flyout === 'quote' || state.flyout === 'survey') return;
     const t = e.target;
     if ($sticky.contains(t) || $chatWindow.contains(t) || $panel.contains(t) || $panelToggle.contains(t) || t.closest?.('#demoNotes')) return;
     closeFlyout();
@@ -2946,12 +3083,15 @@
         "It replaces today's footer one-for-one, so V1 can ship without new content types or approvals."),
     ],
     'section-navigator': [
-      note('section-nav', '.primary-nav', 'Persistent section navigation',
-        {
-          desktop: 'Scroll Spy highlights the section in view, and each link jumps to its section. When the bar gets crowded it collapses to the active section plus "More".',
-          mobile: 'Scroll Spy highlights the section in view, and each link jumps to its section. On a phone the links scroll sideways within the bar; with Auto-collapse on, they reduce to the active section plus "More".',
+      // Live: names the section currently highlighted.
+      note('section-nav', '.primary-nav', 'Jump anywhere on the page',
+        (c) => {
+          const linked = NAV_SECTIONS.find((sec) => sec.id === state.activeSection);
+          const now = linked ? `Right now: ${linked.label} is highlighted.` : `Right now: ${sectionLabel(state.activeSection)}, outside the linked sections.`;
+          return `${now} ${c.mobile ? 'Tap' : 'Click'} a section to jump straight to it; the highlight follows as you scroll`
+            + (c.mobile ? ', and the strip slides sideways to keep it in view.' : '.');
         },
-        'Long model pages get wayfinding that follows the visitor, without a second sticky nav bar.'),
+        'Long model pages get wayfinding that follows the visitor — without a second sticky nav bar competing for the same edge of the screen.'),
     ],
     'mobile-compact': [
       note('mobile', SURFACE, 'Composition changes by breakpoint',
@@ -3095,7 +3235,11 @@
             : 'Hovering or focusing the bar pauses it, and so does switching tabs.'),
         'A low-stakes message gets its moment without anyone having to dismiss it, and never lingers.', { kind: 'notice' }));
     }
-    if (state.surveyActive) {
+    if (state.flyout === 'survey' && !state.surveySubmitted) {
+      out.push(note('survey-form', '.survey-flow', 'Answered in place',
+        'Take Survey opens a one-question survey in the same panel as chat prompts and the quote form — not a new tab or a vendor popup. Answer it or close it and the original content comes back.',
+        'Visitors give feedback without losing their place on the page, and the answer lands in the same analytics stream as everything else.', { kind: 'survey' }));
+    } else if (state.surveyActive) {
       out.push(note('survey-active', '.primary-prompt--survey', 'The survey takes over',
         'The survey briefly replaces the footer content (violet dot, violet button), then hands the space back.',
         'No separate survey popup competing with the footer — one layer, one thing at a time.', { kind: 'survey' }));
