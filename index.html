@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230c0c0d'/%3E%3Crect x='18' y='60' width='64' height='14' rx='7' fill='%23fff'/%3E%3C/svg%3E">
 <!-- ?v= busts browser and GitHub Pages caches (both keep files ~10 min):
      bump it whenever styles.css or script.js changes. -->
-<link rel="stylesheet" href="styles.css?v=2026-09-28.4">
+<link rel="stylesheet" href="styles.css?v=2026-09-28.5">
 <!-- Flags JavaScript before first paint, so the no-JS fallbacks below
      (.section-action) never flash for visitors who get the sticky surface. -->
 <script>document.documentElement.classList.add('js');</script>
@@ -404,10 +404,11 @@
         <button data-flow="7" type="button">7. Scroll Spy: Section Nav (V2)</button>
         <button data-flow="8" type="button">8. Chat &amp; Search</button>
         <button data-flow="9" type="button">9. Timed Notice</button>
-        <button data-flow="10" type="button">10. Survey Takeover</button>
-        <button data-flow="11" type="button">11. Quote Takeover</button>
-        <button data-flow="12" type="button">12. Survey vs. Quote</button>
-        <button data-flow="13" type="button">13. Orchestration</button>
+        <button data-flow="10" type="button">10. Personalized Offer</button>
+        <button data-flow="11" type="button">11. Survey Takeover</button>
+        <button data-flow="12" type="button">12. Quote Takeover</button>
+        <button data-flow="13" type="button">13. Survey vs. Quote</button>
+        <button data-flow="14" type="button">14. Orchestration</button>
       </div>
       <p class="panel__flow-note" id="flowNote" aria-live="polite" hidden></p>
       <label class="panel__row panel__notes-toggle">
@@ -709,6 +710,14 @@
 </section>
 
 <!-- ============================================================
+     PERSONALIZED OFFER POP-UP — a standard pop-up over the page that
+     moves down into the sticky surface after a few seconds (or when
+     closed). Built by script.js; sits just under the sticky surface in
+     the stack, so the bar it moves into stays visible.
+     ============================================================ -->
+<div id="offerPop" class="offer-pop" hidden></div>
+
+<!-- ============================================================
      "SHOW MORE" MODAL — opened by a contextual "+" action (Scroll Spy:
      Contextual CTA). Deeper content on the section in view, over the
      dimmed page; the button that opened it becomes its close. Sits just
@@ -807,6 +816,6 @@
   </div>
 </div>
 
-<script src="script.js?v=2026-09-28.4"></script>
+<script src="script.js?v=2026-09-28.5"></script>
 </body>
 </html>

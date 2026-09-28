@@ -20,7 +20,7 @@ top of and scroll against.
 - [Why this exists](#why-this-exists) — the problem at the bottom of the screen
 - [The strategy](#the-strategy) — one shared surface, with rules
 - [Try it](#try-it) — live site, or run it locally
-- [Demoing it live](#demoing-it-live) — the thirteen-step Demo Flow, presets, presenter tools
+- [Demoing it live](#demoing-it-live) — the fourteen-step Demo Flow, presets, presenter tools
 - [Tactical decisions](#tactical-decisions) — how the strategy became specific design and engineering choices
 - [Roadmap: V1, V2, V3](#roadmap-v1-v2-v3) — what's proposed now vs. later
 - [Measuring success](#measuring-success) — proposed pilot metrics
@@ -168,18 +168,24 @@ you pick a preset by hand.
    listening weekend) arrives after the Prompt delay and closes itself when
    the line along the top of the bar runs out. Hover or focus the bar to
    pause it.
-10. **Survey Takeover** — the survey arrives after the Prompt delay and
+10. **Personalized Offer** — personalization: after the Prompt delay a
+   $500 private offer for a returning visitor opens like a standard pop-up
+   over the page, then flies down into the bar a few seconds later (or as
+   soon as it's closed) and stays there as a compact strip with the same
+   image. Click the thumbnail to see it full size again; Claim shows the
+   offer code, which can go straight into a quote.
+11. **Survey Takeover** — the survey arrives after the Prompt delay and
    takes over the bar in violet. **Take Survey** opens a one-question survey
    inside the surface (a 1–5 rating and an optional comment). Send it or
    dismiss it and the original content comes back.
-11. **Quote Takeover** — a returning-visitor quote prompt arrives after the
+12. **Quote Takeover** — a returning-visitor quote prompt arrives after the
    Prompt delay and takes over in green. **Get My Quote** opens the
    four-step request form; closing it keeps your progress.
-12. **Survey vs. Quote** — both prompts, a few seconds apart. The readout
+13. **Survey vs. Quote** — both prompts, a few seconds apart. The readout
    counts down; the Survey arrives first, then the Quote animates over it
    because it outranks it. Dismiss the Quote and the Survey comes back after
    a short beat.
-13. **Orchestration** — shows the privacy notice immediately and schedules
+14. **Orchestration** — shows the privacy notice immediately and schedules
    a Survey and a Quote prompt behind it. When they land, privacy still wins
    and they wait ("…_triggered — waiting"). Accept the notice and the Quote
    follows after a short beat; dismiss the Quote and the Survey follows
@@ -373,7 +379,8 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
   or is replaced, is kept in a "Messages you closed" section at the end of
   the page for the rest of the visit: the satellite-radio offer (timed out,
   dismissed, or replaced by a survey or quote), a dismissed survey or quote
-  prompt, and the footer message itself when it's fully dismissed. Each
+  prompt, a dismissed private offer, and the footer message itself when it's
+  fully dismissed. Each
   entry keeps its color key and its action ("Take the survey", "Get My
   Quote" or "Continue My Quote", "Learn more", "Show it again"), and
   bringing the survey or quote back reopens it in the surface straight to
@@ -444,6 +451,7 @@ for a pilot:
 | Does chat get used more as a built-in entry point than as a bubble? | Conversations started (`chat_opened`), and from which entry point |
 | Where does the quote form lose people? | Step-by-step funnel (`quote_step`), which fields fail validation (`quote_validation`), and completions (`quote_submitted`) |
 | Are prompts welcome, or just tolerated? | Dismissals vs. engagement (`survey_dismissed` vs. `survey_submitted`, `quote_dismissed` vs. `quote_submitted`), and how often a prompt had to wait its turn (`…_triggered — waiting`) |
+| Does personalization pay off, and at what cost? | Offer shown (`offer_shown`), how it reached the bar (`offer_docked`: timed, closed, not now, escape), reopened from the bar (`offer_reopened`), claimed (`offer_claimed`), used on a quote, and bounce vs. pages without the pop-up |
 | Do people come back for what they closed? | Entries saved (`closed_message_saved`, with how it closed) vs. reopened from the end of the page (`closed_message_reopened`), by message type |
 | Does "show more" earn its place? | Opens per section (`show_more_opened`), time spent and how it was closed (`show_more_closed`: escape, button, outside click, or the test-drive link inside), and whether visitors who open one go on to a CTA |
 | Does section navigation help people find things? | Jumps from the bar (`section_changed — nav click`), scroll depth, and whether survey ratings for "easy to find" go up |
@@ -596,6 +604,9 @@ instead of requiring a close look at icon shape or copy:
 - **Quote** — green, with a deliberately stronger treatment than the
   Survey's dot and button (see "Prompts are ranked visually, too" below);
   also used for the lead-gen form's focus ring and submit button.
+- **Personalized offer** — raspberry (the "Personalized for you" chip, the
+  Claim buttons, the countdown line, and the bar's tint while the offer is
+  there).
 - **Privacy notice** — amber (a dot before the message, a top border on the
   bar, and — not just decorative — the Accept button, which previously
   rendered as black text with no visible button boundary on the bar's
@@ -827,6 +838,38 @@ contact you by phone at … with their best price on the 2025 Aurelia GT
 Grand Touring" — and the event log records the vehicle, dealer, and which
 optional details were filled in. Dealers, prices, and distances are mock
 data; there's no backend.
+
+### Personalization: a pop-up that moves into the bar
+
+The Personalized Offer scenario (Demo Flow step 10, or the preset of the
+same name) shows the surface hosting content from a personalization engine:
+here, a $500 private offer for a returning visitor ("Because you've been
+looking at Aurelia GT"), drawn as a traditional banner ad.
+
+- **It starts as a standard pop-up.** After the Prompt delay the banner
+  opens over a dimmed page, with the offer, "Claim My Offer" and "Not now".
+  It sits just under the sticky surface in the stack, so the bar it's about
+  to move into stays visible. A line under it counts down about six
+  seconds; hovering over or focusing it pauses the count.
+- **Then it moves into the bar.** When the time is up, or as soon as it's
+  closed (×, "Not now", Escape, or a click on the dimmed page), the card
+  shrinks and flies down into the surface, and a compact strip takes the
+  bar's place: a thumbnail of the same banner, "Your $500 private offer ·
+  Ends Oct 31", and Claim Offer. A highlight runs round the surface's border
+  as it lands. Nothing is lost by closing the pop-up.
+- **It stays useful in the bar.** The thumbnail opens the full offer again
+  (without the countdown, since the visitor asked for it). Claim opens the
+  offer code in the bar's panel, with "Copy code" and "Get a quote with this
+  offer", which brings up the quote prompt with the offer noted and opens
+  the form.
+- **It's primary content, not a takeover.** Personalized content replaces
+  the bar's default content, so the survey, quote prompt and timed notice
+  still take over on top of it and hand the space back to it afterwards.
+  Required UI still wins: if the offer comes due while the privacy notice
+  is up it waits, and if the notice appears while the pop-up is open, the
+  offer moves into the bar straight away. Dismissing the strip puts the
+  offer under "Messages you closed", where "View my offer" brings it back.
+- **Reduced motion:** the pop-up appears and docks without the flight.
 
 ### Timed notices that close themselves
 

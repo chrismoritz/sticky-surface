@@ -281,6 +281,20 @@
       note: 'A partner message arrives after the Prompt delay and closes itself when the line along the top of the bar runs out. Hover or focus the bar to pause it.',
     },
     {
+      id: 'personalized-offer',
+      label: 'Personalized Offer',
+      hint: '$500 private offer — a pop-up that moves into the bar',
+      version: 'v2',
+      group: 'prompts',
+      patch: {
+        legacyMode: false, presentation: 'floating', scrollSpy: 'off',
+        primaryType: 'message-cta', primary: { message: 'Discover the latest', cta: { label: 'Explore' } },
+        chat: 'off', search: 'off',
+      },
+      after() { scheduleOverlay('offer', promptDelayMs()); },
+      note: 'After the Prompt delay a personalized $500 offer opens as a pop-up, then moves down into the bar a few seconds later, or as soon as it is closed.',
+    },
+    {
       id: 'chat-search',
       label: 'Chat + Search',
       hint: 'Test Drive | Ask a Question | Search — each utility in its own color',
@@ -381,6 +395,9 @@
 
     chatWindowOpen: false,
     moreOpen: null, // key of the open "show more" modal, if any
+    offer: null, // personalized offer: { phase: 'popup' | 'docked' | 'dismissed', claimed }
+    offerPrior: null, // the composition the offer replaced in the bar
+    pendingOffer: false,
     chatWindowMessages: [],
 
     privacyActive: false,
@@ -496,6 +513,7 @@
   function computeActiveLayerLabel() {
     if (state.privacyActive) return 'Required UI — Privacy notice';
     if (state.moreOpen) return `Active interaction — Show more: ${MORE_CONTENT[state.moreOpen].eyebrow}`;
+    if (offerVisible()) return 'Personalized pop-up — moves into the bar';
     if (state.activeInteraction === 'chat' || state.chatWindowOpen) return 'Active interaction — Chat';
     if (state.activeInteraction === 'search') return 'Active interaction — Search';
     if (state.flyout === 'chat') return 'Requested utility — Chat prompts open';
@@ -505,6 +523,7 @@
     if (state.quoteActive) return 'Lead capture — Request a Quote';
     if (state.surveyActive) return 'Survey / optional engagement';
     if (state.noticeActive) return 'Ancillary notice — closes itself';
+    if (state.flyout === 'offer' || state.primaryType === 'offer') return 'Personalized content — $500 private offer';
     if (state.scrollSpy === 'contextual') return `Contextual content — ${sectionLabel(state.activeSection)}`;
     if (state.scrollSpy === 'navigation') return 'Contextual content — section navigation';
     if (state.scrollSpy === 'orientation') return 'Contextual content — orientation';
@@ -528,6 +547,7 @@
     if (state.quoteActive) return 'quote';
     if (state.surveyActive) return 'survey';
     if (state.noticeActive) return 'notice';
+    if (state.flyout === 'offer' || state.primaryType === 'offer' || offerVisible()) return 'offer';
     return null;
   }
 
@@ -544,7 +564,7 @@
     renderDemoNotes();
     if (!$activeLayerReadout) return;
     const arriving = Object.entries(scheduled).map(([k, v]) =>
-      `${k === 'quote' ? 'Quote prompt' : k === 'notice' ? 'Timed notice' : 'Survey'} arriving in ${Math.max(0, (v.dueAt - performance.now()) / 1000).toFixed(1)}s`);
+      `${promptName(k)} arriving in ${Math.max(0, (v.dueAt - performance.now()) / 1000).toFixed(1)}s`);
     $activeLayerReadout.innerHTML = `Active layer: <strong>${computeActiveLayerLabel()}</strong>`
       + arriving.map((t) => `<span class="active-layer__next">${t}</span>`).join('');
     if (kind) $activeLayerReadout.dataset.kind = kind;
@@ -639,6 +659,7 @@
     if (state.noticeActive) return renderNoticePrimary();
     if (state.scrollSpy === 'navigation') return renderNavPrimary();
     if (state.scrollSpy === 'orientation') return renderOrientationPrimary();
+    if (state.primaryType === 'offer') return renderOfferPrimary();
     if (state.primaryType === 'search-inline') return renderSearchInlinePrimary();
     return renderMessageCtaPrimary();
   }
@@ -731,6 +752,7 @@
 
   function quoteSubline() {
     if (state.quoteDraft && state.quoteDraft.step > 0) return `Pick up where you left off: step ${state.quoteDraft.step + 1} of 4.`;
+    if (state.offer?.claimed) return `Your ${OFFER.amount} private offer (${OFFER.code}) will be applied.`;
     const price = quoteStartingPrice();
     return `A personalized dealer quote in about 2 minutes${price ? ` · From ${price} MSRP` : ''}`;
   }
@@ -1670,6 +1692,8 @@
       renderQuoteForm();
     } else if (kind === 'survey') {
       renderSurveyForm();
+    } else if (kind === 'offer') {
+      renderOfferClaim();
     }
     renderActiveLayer();
     syncQuoteCta();
@@ -2386,7 +2410,7 @@
 
   function scheduleOverlay(kind, ms, reason) {
     if (scheduled[kind]) return;
-    const fire = { quote: triggerQuote, survey: triggerSurvey, notice: triggerNotice }[kind];
+    const fire = { quote: triggerQuote, survey: triggerSurvey, notice: triggerNotice, offer: triggerOffer }[kind];
     if (!ms) { fire(); return; }
     scheduled[kind] = {
       dueAt: performance.now() + ms,
@@ -2637,6 +2661,10 @@
       state.pendingNotice = false;
       scheduleOverlay('notice', beat, 'released');
     }
+    if (state.pendingOffer) {
+      state.pendingOffer = false;
+      scheduleOverlay('offer', beat, 'released');
+    }
   }
 
   /* ------------------------------------------------------------------ *
@@ -2659,6 +2687,7 @@
     survey: { name: 'Survey', title: () => 'Help us improve our site', sub: () => 'One quick question about finding what you were looking for.' },
     quote: { name: 'Request a Quote', title: () => 'Ready for pricing on the Aurelia GT?', sub: () => quoteSubline() },
     primary: { name: 'Footer message', title: () => state.primary?.message || state.primary?.cta?.label || 'Footer message' },
+    offer: { name: 'Private offer', title: () => `${OFFER.amount} toward a new Aurelia GT`, sub: () => `Personalized for you · ${OFFER.ends}` },
   };
 
   function addRecent(kind, how) {
@@ -2693,6 +2722,8 @@
       state.hasQualifyingAction = true;
       triggerQuote();
       if (state.quoteActive) whenPromptShows('.primary-prompt--quote .quote-cta', (b) => { if (state.flyout !== 'quote') b.click(); });
+    } else if (kind === 'offer') {
+      restoreOffer();
     } else if (kind === 'primary') {
       state.fullyDismissed = false;
       state.dismissed = false;
@@ -2714,7 +2745,7 @@
         action = h('a', { class: 'cta-textlink', href: '#technology', onclick: () => log('cta_clicked', 'notice: learn more (from closed messages)') },
           NOTICE.cta, ' ', h('span', { 'aria-hidden': 'true', text: '→' }));
       } else {
-        const label = m.kind === 'survey' ? 'Take the survey' : m.kind === 'quote' ? quoteCtaLabel() : 'Show it again';
+        const label = m.kind === 'survey' ? 'Take the survey' : m.kind === 'quote' ? quoteCtaLabel() : m.kind === 'offer' ? 'View my offer' : 'Show it again';
         action = h('button', { type: 'button', class: `btn btn--small recent-item__action recent-item__action--${m.kind}`, text: label, onclick: () => restoreRecent(m.kind) });
       }
       const sub = k.sub && k.sub();
@@ -2737,6 +2768,290 @@
     const r = $recentSection.getBoundingClientRect();
     const inView = r.top < window.innerHeight * 0.85 && r.bottom > 0;
     if (inView !== recentInView) { recentInView = inView; renderDemoNotes(); }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Personalized offer — content from a personalization engine (here, a
+   * $500 private offer for a returning visitor) that opens like a standard
+   * pop-up over the page, then moves down into the sticky surface after a
+   * few seconds, or as soon as it's closed. In the bar it replaces the
+   * default content (personalized content is primary content), so the
+   * survey, quote and timed notice still take over on top of it and hand
+   * the space back to it afterwards.
+   * ------------------------------------------------------------------ */
+
+  const OFFER = {
+    amount: '$500',
+    headline: 'Your private offer: $500 toward a new Aurelia GT',
+    why: "Because you've been looking at Aurelia GT",
+    body: 'Exclusive to you through October 31, on top of current incentives. Claim it now, or find it in the bar below anytime.',
+    ends: 'Ends Oct 31',
+    code: 'AGT500-K7Q4',
+  };
+  const OFFER_POP_MS = 6000;
+
+  // The "banner ad" itself: one inline SVG, used full size in the pop-up and
+  // as a thumbnail in the bar. `id` keeps its gradient ids unique per copy.
+  function offerArt(id, label) {
+    return `<svg viewBox="0 0 640 260" preserveAspectRatio="xMidYMid slice" ${label ? `role="img" aria-label="${label}"` : 'aria-hidden="true"'}>
+      <defs>
+        <linearGradient id="obg-${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0d0f13"/><stop offset=".62" stop-color="#1b2029"/><stop offset="1" stop-color="#2d1820"/></linearGradient>
+        <radialGradient id="oglow-${id}" cx=".72" cy=".64" r=".5"><stop offset="0" stop-color="#c0304f" stop-opacity=".6"/><stop offset="1" stop-color="#c0304f" stop-opacity="0"/></radialGradient>
+        <linearGradient id="obody-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1eee9"/><stop offset="1" stop-color="#8e8b87"/></linearGradient>
+      </defs>
+      <rect width="640" height="260" fill="url(#obg-${id})"/>
+      <rect width="640" height="260" fill="url(#oglow-${id})"/>
+      <path d="M296 213H640" stroke="rgba(255,255,255,.14)" stroke-width="2"/>
+      <g transform="translate(296 100)">
+        <path d="M8 88C20 70 60 58 110 54C140 30 190 18 240 22C272 25 300 42 318 56C330 62 334 74 332 86L326 94H12Z" fill="url(#obody-${id})"/>
+        <path d="M122 53C150 33 190 25 232 28C250 30 266 38 280 50Z" fill="#1e232b"/>
+        <path d="M40 70C120 58 220 56 318 66" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="1.5"/>
+        <path d="M314 68l14 4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="78" cy="94" r="22" fill="#0b0c0f" stroke="#3a3f48" stroke-width="5"/><circle cx="78" cy="94" r="8" fill="#6b707a"/>
+        <circle cx="262" cy="94" r="22" fill="#0b0c0f" stroke="#3a3f48" stroke-width="5"/><circle cx="262" cy="94" r="8" fill="#6b707a"/>
+      </g>
+      <g font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif">
+        <text x="32" y="52" fill="#f5b3c2" font-size="13" font-weight="700" letter-spacing="3">PRIVATE OFFER</text>
+        <text x="27" y="142" fill="#fff" font-size="96" font-weight="800" letter-spacing="-3">$500</text>
+        <text x="32" y="176" fill="#ece7e1" font-size="20">toward your Aurelia GT</text>
+        <text x="32" y="224" fill="rgba(255,255,255,.55)" font-size="12">Ends Oct 31 · See dealer for details</text>
+      </g>
+    </svg>`;
+  }
+
+  // `var` (hoisted): applyPreset() resets the offer during setup.
+  var $offerPop = document.getElementById('offerPop');
+  var offerPopAnim = null;
+  var offerPauses = new Set();
+  var offerDocking = false;
+
+  function offerVisible() { return !!($offerPop && !$offerPop.hidden); }
+
+  function renderOfferPopup({ auto }) {
+    const card = h('div', { class: 'offer-pop__card', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'offerPopTitle', 'aria-describedby': 'offerPopText' },
+      h('button', { type: 'button', class: 'offer-pop__x', 'aria-label': 'Close; the offer moves to the bar', innerHTML: closeIcon(), onclick: () => dockOffer('closed') }),
+      h('div', { class: 'offer-pop__banner', innerHTML: offerArt('pop', `Aurelia GT banner: ${OFFER.amount} private offer, ${OFFER.ends}`) }),
+      h('div', { class: 'offer-pop__body' },
+        h('p', { class: 'offer-pop__why' }, h('span', { class: 'offer-pop__chip', text: 'Personalized for you' }), ` ${OFFER.why}`),
+        h('h2', { class: 'offer-pop__title', id: 'offerPopTitle', text: OFFER.headline }),
+        h('p', { class: 'offer-pop__text', id: 'offerPopText', text: OFFER.body }),
+        h('div', { class: 'offer-pop__actions' },
+          h('button', { type: 'button', class: 'btn btn--primary offer-pop__claim', text: state.offer?.claimed ? 'View My Code' : 'Claim My Offer', onclick: () => dockOffer('claim') }),
+          h('button', { type: 'button', class: 'btn btn--ghost offer-pop__later', text: 'Not now', onclick: () => dockOffer('not now') })),
+        auto ? h('div', { class: 'offer-pop__timer', 'aria-hidden': 'true' }, h('span', { id: 'offerPopLine' })) : null,
+        auto ? h('p', { class: 'offer-pop__hint', text: 'Moving to the bar below in a few seconds' }) : null));
+    card.addEventListener('mouseenter', () => pauseOfferTimer('hover'));
+    card.addEventListener('mouseleave', () => resumeOfferTimer('hover'));
+    card.addEventListener('focusin', () => pauseOfferTimer('focus'));
+    card.addEventListener('focusout', (e) => { if (!card.contains(e.relatedTarget)) resumeOfferTimer('focus'); });
+    $offerPop.replaceChildren(h('div', { class: 'offer-pop__backdrop', onclick: () => dockOffer('outside click') }), card);
+    return card;
+  }
+
+  function pauseOfferTimer(why) { offerPauses.add(why); if (offerPopAnim) offerPopAnim.pause(); }
+  function resumeOfferTimer(why) { offerPauses.delete(why); if (offerPopAnim && !offerPauses.size) offerPopAnim.play(); }
+
+  function triggerOffer() {
+    if (offerVisible() || state.offer?.phase === 'docked') return;
+    if (state.privacyActive || interactionBusy()) {
+      state.pendingOffer = true;
+      log('offer_triggered', `waiting — ${state.privacyActive ? 'privacy notice active' : 'interaction in use'}`);
+      return;
+    }
+    removeRecent('offer');
+    state.offer = { phase: 'popup', claimed: state.offer?.claimed || false };
+    showOfferPopup({ auto: true });
+    log('offer_shown', 'personalized pop-up — returning visitor');
+    announce(`${OFFER.headline}. It moves to the bar at the bottom of the page in a few seconds.`);
+  }
+
+  function showOfferPopup({ auto, from }) {
+    const card = renderOfferPopup({ auto });
+    $offerPop.hidden = false;
+    offerPauses.clear();
+    if (!prefersReducedMotion) {
+      $offerPop.querySelector('.offer-pop__backdrop').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out' });
+      if (from) {
+        // Re-opened from the bar: grow back out of it.
+        const to = card.getBoundingClientRect();
+        const sx = from.width / to.width;
+        card.animate([
+          { transform: `translate(${from.left + from.width / 2 - (to.left + to.width / 2)}px, ${from.top + from.height / 2 - (to.top + to.height / 2)}px) scale(${sx})`, opacity: 0 },
+          { transform: 'none', opacity: 1 },
+        ], { duration: 560, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      } else {
+        card.animate([{ transform: 'translateY(24px) scale(.96)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 480, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      }
+    }
+    if (auto) {
+      offerPopAnim = document.getElementById('offerPopLine').animate(
+        [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
+        { duration: OFFER_POP_MS, easing: 'linear', fill: 'forwards' });
+      offerPopAnim.onfinish = () => { offerPopAnim = null; dockOffer('timed'); };
+      if (card.matches(':hover')) pauseOfferTimer('hover');
+    } else {
+      card.querySelector('.offer-pop__claim').focus({ preventScroll: true });
+    }
+    renderActiveLayer();
+  }
+
+  function hideOfferPopup() {
+    if (offerPopAnim) { offerPopAnim.onfinish = null; offerPopAnim.cancel(); offerPopAnim = null; }
+    offerPauses?.clear();
+    if ($offerPop) { $offerPop.hidden = true; $offerPop.replaceChildren(); }
+  }
+
+  // Swap the bar's own content for the offer: personalized content becomes
+  // the primary composition (or the one a takeover will hand back to).
+  function installOfferComposition() {
+    const target = state.priorComposition || state;
+    if (target.primaryType !== 'offer') {
+      state.offerPrior = { primaryType: target.primaryType, primary: target.primary, scrollSpy: target.scrollSpy };
+      target.primaryType = 'offer';
+      target.scrollSpy = 'off';
+    }
+  }
+
+  function dockOffer(how) {
+    if (!offerVisible() || offerDocking) return;
+    const card = $offerPop.querySelector('.offer-pop__card');
+    const focusWasInside = $offerPop.contains(document.activeElement);
+    if (offerPopAnim) { offerPopAnim.onfinish = null; offerPopAnim.cancel(); offerPopAnim = null; }
+    state.offer = { ...(state.offer || {}), phase: 'docked' };
+    state.minimized = false;
+    state.dismissed = false;
+    state.fullyDismissed = false;
+    state.scrollVisible = true;
+    installOfferComposition();
+    const firstSurface = $surface.getBoundingClientRect();
+    const from = card.getBoundingClientRect();
+    cancelSwap();
+    renderPrimary();
+    applyVisibility();
+    applyControlsVisibility();
+    log('offer_docked', how);
+    const finish = () => {
+      offerDocking = false;
+      hideOfferPopup();
+      $primary.querySelector('.primary-prompt--offer')?.classList.remove('is-arriving');
+      traceBorder();
+      renderActiveLayer();
+      evaluateCrowding();
+      if (how === 'claim') openOfferClaim();
+      else if (focusWasInside) $primary.querySelector('.offer-claim')?.focus({ preventScroll: true });
+      maybeReleasePendingOverlays();
+    };
+    if (prefersReducedMotion) { finish(); return; }
+    offerDocking = true;
+    animateSurfaceResize(firstSurface);
+    $primary.querySelector('.primary-prompt--offer')?.classList.add('is-arriving');
+    // FLIP the pop-up down into the bar: it shrinks toward the surface and
+    // fades as it lands, while the offer strip rises in underneath.
+    const to = $surface.getBoundingClientRect();
+    const scale = Math.max(0.12, to.width / from.width);
+    const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+    const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+    $offerPop.querySelector('.offer-pop__backdrop').animate([{ opacity: 1 }, { opacity: 0 }], { duration: 520, easing: 'ease-in', fill: 'forwards' });
+    const fly = card.animate([
+      { transform: 'none', opacity: 1, borderRadius: '24px' },
+      { transform: `translate(${dx * 0.55}px, ${dy * 0.55}px) scale(${(1 + scale) / 2})`, opacity: 1, offset: 0.55 },
+      { transform: `translate(${dx}px, ${dy}px) scale(${scale})`, opacity: 0, borderRadius: '60px' },
+    ], { duration: 780, easing: 'cubic-bezier(.55,0,.25,1)', fill: 'forwards' });
+    fly.onfinish = finish;
+  }
+
+  // From the bar's thumbnail: the offer opens full size again (no timer —
+  // the visitor asked for it); closing it puts it back.
+  function reopenOfferPopup() {
+    if (offerVisible()) return;
+    const from = $primary.querySelector('.offer-thumb')?.getBoundingClientRect() || $surface.getBoundingClientRect();
+    if (state.flyout === 'offer') closeFlyout();
+    showOfferPopup({ auto: false, from });
+    log('offer_reopened', 'from the bar');
+    renderDemoNotes();
+  }
+
+  function renderOfferPrimary() {
+    const claimed = !!state.offer?.claimed;
+    const claim = h('button', {
+      type: 'button', class: 'btn btn--small offer-claim',
+      'aria-controls': 'stickyFlyout', 'aria-expanded': String(state.flyout === 'offer'),
+      text: claimed ? 'View Code' : 'Claim Offer',
+      onclick: () => {
+        const first = $surface.getBoundingClientRect();
+        if (state.flyout === 'offer') closeFlyout(); else openOfferClaim();
+        animateSurfaceResize(first);
+      },
+    });
+    $primary.appendChild(h('div', { class: 'primary-prompt primary-prompt--offer' },
+      h('button', { type: 'button', class: 'offer-thumb', 'aria-label': 'View your private offer', innerHTML: offerArt('thumb'), onclick: reopenOfferPopup }),
+      h('p', {}, h('strong', { text: `Your ${OFFER.amount} private offer` }), h('span', { class: 'offer-strip__meta', text: ` · ${OFFER.ends}` })),
+      claim,
+      h('button', { type: 'button', class: 'sticky__icon-btn', 'aria-label': 'Dismiss private offer', innerHTML: closeIcon(), onclick: () => dismissOffer() })));
+  }
+
+  function openOfferClaim() {
+    if (!state.offer) return;
+    if (!state.offer.claimed) { state.offer.claimed = true; log('offer_claimed', OFFER.code); }
+    openFlyout('offer');
+    const c = $primary.querySelector('.offer-claim');
+    if (c) c.textContent = 'View Code';
+    document.getElementById('offerCode')?.focus({ preventScroll: true });
+  }
+
+  function renderOfferClaim() {
+    const copy = h('button', { type: 'button', class: 'btn btn--ghost btn--small', text: 'Copy code' });
+    copy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(OFFER.code); copy.textContent = 'Copied'; } catch (_) { copy.textContent = 'Select the code to copy it'; }
+      log('offer_code_copied', OFFER.code);
+    });
+    $flyout.replaceChildren(
+      h('p', { class: 'flyout-title', text: 'Your private offer' }),
+      h('div', { class: 'offer-claim-panel' },
+        h('p', { class: 'offer-code', id: 'offerCode', tabIndex: -1 }, h('span', { class: 'offer-code__label', text: 'Offer code' }), h('strong', { text: OFFER.code })),
+        h('p', { class: 'offer-claim-panel__text', text: `${OFFER.amount} toward a new 2026 Aurelia GT, on top of current incentives. Show this code at any Solstice dealer, or apply it to a quote. Ends October 31, 2026.` }),
+        h('div', { class: 'offer-claim-panel__actions' },
+          h('button', { type: 'button', class: 'btn btn--primary btn--small', text: 'Get a quote with this offer', onclick: () => {
+            log('cta_clicked', 'quote with private offer');
+            closeFlyout();
+            state.quoteDismissed = false;
+            state.quoteSubmitted = false;
+            state.hasQualifyingAction = true;
+            triggerQuote();
+            if (state.quoteActive) whenPromptShows('.primary-prompt--quote .quote-cta', (b) => { if (state.flyout !== 'quote') b.click(); });
+          } }),
+          copy)));
+  }
+
+  function dismissOffer() {
+    if (state.offer?.phase !== 'docked') return;
+    state.offer = { ...state.offer, phase: 'dismissed' };
+    if (state.flyout === 'offer') closeFlyout();
+    const target = state.priorComposition || state;
+    if (state.offerPrior && target.primaryType === 'offer') Object.assign(target, state.offerPrior);
+    state.offerPrior = null;
+    log('offer_dismissed', 'from the bar');
+    addRecent('offer', 'dismissed');
+    swapPrimary(true);
+  }
+
+  // "Messages you closed" → back into the bar.
+  function restoreOffer() {
+    if (state.offer?.phase === 'docked' || offerVisible()) return;
+    state.offer = { ...(state.offer || {}), phase: 'docked' };
+    state.minimized = false; state.dismissed = false; state.fullyDismissed = false; state.scrollVisible = true;
+    installOfferComposition();
+    removeRecent('offer');
+    swapPrimary(true);
+    setTimeout(traceBorder, getDurMedMs() + 200);
+  }
+
+  function resetOffer() {
+    hideOfferPopup();
+    offerDocking = false;
+    state.offer = null;
+    state.offerPrior = null;
+    state.pendingOffer = false;
   }
 
   /* ------------------------------------------------------------------ *
@@ -2843,6 +3158,9 @@
     $privacyBar.classList.add('is-entering');
     log('privacy_shown');
     updateStickyOffset();
+    // Required UI wins: an offer pop-up that's up gets out of the way,
+    // into the bar (where it keeps its actions), rather than covering it.
+    if (offerVisible()) dockOffer('privacy notice');
   }
 
   function resolvePrivacy(result) {
@@ -2971,6 +3289,7 @@
     closeMoreModal('scene changed', { instant: true });
     cancelCtaMorph();
     removeRecent('primary'); // a new scene shows the bar again
+    resetOffer();
     cancelScheduledOverlays();
     cancelSwap();
     stopNoticeTimer();
@@ -3189,10 +3508,11 @@
     7: 'Section links in the bar: click one to jump straight to that part of the page. The highlight follows as you scroll.',
     8: 'Each utility has its own color. Focus the chat field (blue) or open Search (teal) and the whole surface tints to match. Esc or clicking away closes things.',
     9: 'A partner message (a satellite-radio free weekend) arrives after the Prompt delay and closes itself when the line along the top runs out. Hover or focus the bar to pause it.',
-    10: 'The survey arrives after the Prompt delay and takes over the bar (violet). Take Survey opens a one-question survey in place; answer it or dismiss it and the original content comes back.',
-    11: 'A returning-visitor quote prompt arrives after the Prompt delay and takes over the bar (green). Get My Quote opens the four-step request form; progress is kept if you close it.',
-    12: 'Both prompts, a few seconds apart: the Survey arrives first, then the Quote takes over because it outranks it. Dismiss the Quote and the Survey comes back.',
-    13: 'Privacy shows first and wins; the Survey and Quote are scheduled behind it. Accept the notice and the Quote follows after a short beat, then the Survey after that.',
+    10: 'Personalization: a $500 private offer for a returning visitor opens as a standard pop-up after the Prompt delay, then moves down into the bar a few seconds later (or as soon as you close it). Click its image in the bar to see it again, or Claim for the code.',
+    11: 'The survey arrives after the Prompt delay and takes over the bar (violet). Take Survey opens a one-question survey in place; answer it or dismiss it and the original content comes back.',
+    12: 'A returning-visitor quote prompt arrives after the Prompt delay and takes over the bar (green). Get My Quote opens the four-step request form; progress is kept if you close it.',
+    13: 'Both prompts, a few seconds apart: the Survey arrives first, then the Quote takes over because it outranks it. Dismiss the Quote and the Survey comes back.',
+    14: 'Privacy shows first and wins; the Survey and Quote are scheduled behind it. Accept the notice and the Quote follows after a short beat, then the Survey after that.',
   };
   const $flowNote = document.getElementById('flowNote');
 
@@ -3291,13 +3611,19 @@
         openPanel();
         break;
       case 10:
+        applyPreset('personalized-offer');
+        openPanelSections([9]); // Orchestration Demos — the Prompt delay control
+        // The pop-up needs the page; on narrow screens the panel would cover it.
+        if (document.documentElement.clientWidth >= 1000) openPanel(); else closePanel();
+        break;
       case 11:
       case 12:
-        applyPreset({ 10: 'survey-integration', 11: 'quote-prompt', 12: 'survey-quote-handoff' }[step]);
+      case 13:
+        applyPreset({ 11: 'survey-integration', 12: 'quote-prompt', 13: 'survey-quote-handoff' }[step]);
         openPanelSections([9]); // Orchestration Demos — the Prompt delay control
         openPanel();
         break;
-      case 13:
+      case 14:
         applyPreset('stress-test');
         openPanelSections([8, 9]); // Busy/Overflow Edge Cases, Orchestration Demos
         openPanel();
@@ -3706,6 +4032,7 @@
     if (e.key !== 'Escape') return;
     if (!$frameOverlay.hidden) closeFramePreview();
     else if (state.moreOpen) closeMoreModal('escape');
+    else if (offerVisible()) dockOffer('escape');
     else if (!$chaosOverlay.hidden) { $chaosOverlay.hidden = true; log('chaos_closed'); }
     else if (state.chatWindowOpen && $chatWindow.contains(document.activeElement)) closeChatWindow();
     else if (state.flyout) { closeFlyout(); log('flyout_closed', 'escape'); }
@@ -3958,6 +4285,14 @@
         },
         'This generalizes the coming Floating Show More Button: sections with more to say open it in place (Interior, Technology, Performance), and the rest carry a single relevant action (Gallery, Shopping). It lives in the shared surface, so it never competes with chat or prompts.'),
     ],
+    'personalized-offer': [
+      note('offer-docked', '.primary-prompt--offer', 'A pop-up that moves into the bar',
+        {
+          desktop: 'The offer opened like a standard pop-up, then flew down into the surface after a few seconds, or as soon as it was closed. It keeps its image and actions here: click the thumbnail to see it full size again, or Claim for the code, which can go straight into a quote.',
+          mobile: 'The offer opened like a standard pop-up, then flew down into the bar after a few seconds, or as soon as it was closed. It keeps its image and actions here: tap the thumbnail to see it full size again, or Claim for the code, which can go straight into a quote.',
+        },
+        "Personalized content gets a big moment without blocking the page for long, and closing the pop-up doesn't lose the offer. It's still primary content, so a survey or quote can take over and hand the space back to it.", { kind: 'offer' }),
+    ],
     'timed-notice': [
       note('notice-scenario', SURFACE, 'Ancillary messages that step aside',
         'Partner and service messages (here, a satellite-radio free weekend) use the same surface at the lowest optional priority. If a survey or quote needs the space, the notice is dropped rather than queued.',
@@ -3965,7 +4300,7 @@
     ],
   };
 
-  const promptName = (kind) => ({ quote: 'Quote prompt', survey: 'Survey', notice: 'Timed notice' }[kind]);
+  function promptName(kind) { return { quote: 'Quote prompt', survey: 'Survey', notice: 'Timed notice', offer: 'Private offer' }[kind]; }
 
   // Notes about what is happening right now, regardless of scenario.
   // These come first — they explain the thing the audience is looking at.
@@ -4011,6 +4346,11 @@
         },
         "A full conversation doesn't get crammed into the footer, and the entry point stays visible.", { kind: 'chat' }));
     }
+    if (offerVisible() && document.documentElement.clientWidth > 720) {
+      out.push(note('offer-pop', '.offer-pop__card', 'Personalized, then out of the way',
+        'Content from the personalization engine (here, a $500 private offer for a returning visitor) opens as a standard pop-up. The line under it counts down, and hovering or focusing pauses it. Then it moves down into the bar instead of disappearing; closing it early does the same.',
+        "A pop-up's impact without its usual cost: it never traps the visitor, and dismissing it doesn't throw the offer away.", { kind: 'offer', prefer: 'side' }));
+    }
     if (state.flyout === 'quote' && !state.quoteSubmitted) {
       out.push(note('quote-form', '.quote-flow', 'The full form, in four short steps',
         {
@@ -4045,7 +4385,7 @@
     }
     const coming = Object.keys(scheduled);
     if (coming.length && !state.surveyActive && !state.quoteActive && !state.noticeActive && !held) {
-      const kind = ['survey', 'quote', 'notice'].find((k) => coming.includes(k));
+      const kind = ['survey', 'quote', 'notice', 'offer'].find((k) => coming.includes(k));
       out.push(note(`scheduled-${kind}`, SURFACE, `${promptName(kind)} on its way`,
         "It's scheduled rather than shown: it arrives after the Prompt delay (the Prototype Controls panel counts down), and waits its turn if something more important is showing.",
         'A prompt that waits a moment feels less like an ambush than one that fires on page load.', { kind }));
@@ -4084,7 +4424,9 @@
     let eligible = [];
     const hideForOverlay = $frameOverlay && !$frameOverlay.hidden;
     // Notes stay out of the way while a "show more" modal is being read.
-    if ($demoNotesToggle.checked && !embedded && !hideForOverlay && !state.moreOpen) {
+    // …and on phones while the offer pop-up is up (a note would cover it).
+    const offerCovers = offerVisible() && document.documentElement.clientWidth <= 720;
+    if ($demoNotesToggle.checked && !embedded && !hideForOverlay && !state.moreOpen && !offerCovers) {
       const seen = new Set();
       eligible = [...situationalNotes(), ...(SCENARIO_NOTES[scenario] || [])]
         .filter((n) => !seen.has(n.id) && seen.add(n.id) && !dismissedNotes.has(n.id) && anchorFor(n));
