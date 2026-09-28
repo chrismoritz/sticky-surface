@@ -115,6 +115,11 @@ Everything lives in three files:
 - `styles.css` — all visual states (presentation, surface, entrance, responsive breakpoints)
 - `script.js` — state, rendering, orchestration and sequencing, the multi-step quote form, demo notes, event log
 
+The stylesheet and script URLs in `index.html` carry a `?v=` version, so the
+live GitHub Pages copy picks up changes on the next reload (browsers and
+Pages both cache files for about 10 minutes). Bump it whenever `styles.css`
+or `script.js` changes.
+
 ## Demoing it live
 
 Click **Prototype Controls** (top-left) to open the panel. The **Demo
@@ -354,6 +359,16 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
   teal, survey violet, quote green, privacy amber. Everyday commerce content
   stays on the brand's neutral black and white, so color signals a state
   instead of becoming decoration.
+- **Prompts are ranked visually, too.** The Request a Quote prompt is the
+  most valuable optional moment, so it looks like it: a dark card inside
+  the surface with a green price-tag badge, a supporting line with the
+  starting price ("A personalized dealer quote in about 2 minutes · From
+  $69,595 MSRP", or "Pick up where you left off: step 2 of 4" for a saved
+  draft) and a bright green button. It arrives with a green glow, the badge
+  pops in, and a glint crosses the button three times, then it settles.
+  The survey stays a quiet one-liner (a small violet dot and a violet
+  button on a light tint), so the two never read as the same kind of ask.
+  On phones the quote's button takes its own full-width row.
 - **Motion is restrained and optional.** One Animation timing control
   governs every transition, and visitors who prefer reduced motion get
   instant state changes.
@@ -563,8 +578,9 @@ instead of requiring a close look at icon shape or copy:
   hover).
 - **Survey** — violet (a small dot before the message, and the "Take
   Survey" button).
-- **Quote** — green (same treatment as Survey: dot + CTA button), also used
-  for the lead-gen form's focus ring and submit button.
+- **Quote** — green, with a deliberately stronger treatment than the
+  Survey's dot and button (see "Prompts are ranked visually, too" below);
+  also used for the lead-gen form's focus ring and submit button.
 - **Privacy notice** — amber (a dot before the message, a top border on the
   bar, and — not just decorative — the Accept button, which previously
   rendered as black text with no visible button boundary on the bar's

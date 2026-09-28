@@ -629,6 +629,13 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
    put at the right edge as the button collapses to it. */
 .cta-action.is-morphing .cta-action__label { flex-shrink: 0; }
 /* Open modal: icon only, and the + turns into an ×. */
+/* Label states are class-driven only (see setCtaCloseState in script.js):
+   its resting state is always visible unless the button is the close. */
+.cta-action__label { transition: opacity 120ms ease; }
+.cta-action.is-label-out .cta-action__label { opacity: 0; }
+.cta-action.is-label-in .cta-action__label { animation: ctaLabelIn 260ms cubic-bezier(.2,.8,.2,1) 220ms backwards; }
+@keyframes ctaLabelIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .cta-action.is-label-in .cta-action__label { animation: none; } }
 .cta-action.is-close { padding: 5px; gap: 0; }
 .cta-action.is-close .cta-action__label { display: none; }
 .cta-action.is-close .cta-action__icon svg { transform: rotate(45deg); }
@@ -662,7 +669,6 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .primary-prompt--survey p::before { --dot: var(--survey); background: var(--dot); }
 .primary-prompt--survey .btn--primary { background: var(--survey); }
 .primary-prompt--survey .btn--primary:hover { background: #532f80; }
-.primary-prompt--quote p::before { --dot: var(--quote); background: var(--dot); }
 .primary-prompt--notice p::before { --dot: var(--notice); background: var(--dot); }
 .primary-prompt--notice .cta-textlink { color: var(--notice); }
 
@@ -699,8 +705,68 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   .primary-prompt--notice .sticky__icon-btn { order: 1; }
   .primary-prompt--notice .cta-textlink { order: 2; flex-basis: 100%; padding: 8px 0 8px 17px; }
 }
-.primary-prompt--quote .btn--primary { background: var(--quote); }
-.primary-prompt--quote .btn--primary:hover { background: #185f3d; }
+/* -------- Request a Quote: the strongest prompt --------
+   The survey is a quiet one-liner (small violet dot, violet button) on a
+   lightly tinted bar. The quote prompt, the most valuable optional moment,
+   is a dark card with a price-tag badge, a supporting line and a bright
+   green CTA: it arrives with a green glow, the badge pops, and a glint
+   crosses the button a few times, then it settles. */
+.primary-prompt--quote {
+  --quote-bright: #3ddc84;
+  flex: 0 1 auto; gap: 14px;
+  padding: 9px 9px 9px 10px; border-radius: 16px;
+  background: linear-gradient(115deg, #0b1310 0%, #10231a 62%, #16382a 100%);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(61,220,132,.3), 0 10px 26px rgba(10,40,24,.28);
+}
+.primary-prompt--quote p::before { content: none; }
+.quote-badge {
+  flex: none; width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--quote-bright); color: #05110a;
+}
+.quote-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.primary-prompt--quote .quote-copy__title { font-size: .95rem; font-weight: 600; color: #fff; }
+.primary-prompt--quote .quote-copy__sub { font-size: .8rem; color: rgba(255,255,255,.72); }
+.primary-prompt--quote .quote-cta {
+  flex: none; display: inline-flex; align-items: center; gap: 8px;
+  position: relative; overflow: hidden;
+  padding: 10px 14px 10px 18px;
+  background: var(--quote-bright); color: #05110a; font-weight: 700;
+}
+.primary-prompt--quote .quote-cta:hover { background: #63e99e; }
+.primary-prompt--quote .quote-cta:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.quote-cta__icon { display: grid; }
+.primary-prompt--quote .quote-cta::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  /* Swept by background-position (not a transform), so the glint never
+     extends the button's box. */
+  background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,.7) 50%, transparent 58%) no-repeat;
+  background-size: 300% 100%; background-position: 100% 0;
+  animation: quoteGlint 4s ease-in-out 800ms 3;
+}
+.primary-prompt--quote .quote-cta[aria-expanded="true"]::after { animation: none; }
+@keyframes quoteGlint { 0% { background-position: 100% 0; } 22%, 100% { background-position: 0% 0; } }
+.primary-prompt--quote .sticky__icon-btn { color: rgba(255,255,255,.75); }
+.primary-prompt--quote .sticky__icon-btn:hover { color: #fff; background: rgba(255,255,255,.12); }
+.sticky[data-presentation="compact"] .primary-prompt--quote { border-radius: var(--radius-pill); padding-left: 9px; }
+.sticky__primary.is-swapping-in .primary-prompt--quote { animation: quoteArrive 1100ms var(--ease) both; }
+.sticky__primary.is-swapping-in .quote-badge { animation: quoteBadgePop 700ms cubic-bezier(.3,1.5,.5,1) 120ms both; }
+@keyframes quoteArrive {
+  0% { box-shadow: inset 0 0 0 1px rgba(61,220,132,.3), 0 10px 26px rgba(10,40,24,.28), 0 0 0 0 rgba(61,220,132,.55); }
+  100% { box-shadow: inset 0 0 0 1px rgba(61,220,132,.3), 0 10px 26px rgba(10,40,24,.28), 0 0 0 14px rgba(61,220,132,0); }
+}
+@keyframes quoteBadgePop { from { transform: scale(.4) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .primary-prompt--quote .quote-cta::after, .sticky__primary.is-swapping-in .primary-prompt--quote, .sticky__primary.is-swapping-in .quote-badge { animation: none; }
+}
+@media (max-width: 480px) {
+  /* Phone: badge, message and × on the first row; the CTA full width below. */
+  .primary-prompt--quote { flex: 1 1 100%; flex-wrap: wrap; row-gap: 10px; }
+  .quote-copy { flex: 1 1 0; }
+  .primary-prompt--quote .sticky__icon-btn { order: 2; }
+  .primary-prompt--quote .quote-cta { order: 3; flex: 1 1 100%; justify-content: center; }
+}
 
 /* -------- Icon buttons (minimize/dismiss/utility icons) -------- */
 .sticky__icon-btn {

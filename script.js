@@ -717,43 +717,51 @@
     $primary.appendChild(wrap);
   }
 
+  // The quote prompt is the highest-value optional moment, so it gets the
+  // strongest treatment: a dark card inside the surface with a price-tag
+  // badge, a supporting line, and a bright CTA that glints on arrival,
+  // where the survey is a quiet one-liner with a small violet dot.
+  const ICON_TAG = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.4 1.4 0 0 1 0 2l-6.2 6.2a1.4 1.4 0 0 1-2 0z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8.2" cy="8.2" r="1.6" fill="currentColor"/></svg>';
+
+  function quoteStartingPrice() {
+    const trims = QUOTE_CATALOG[2026]?.['Aurelia GT']?.trims || {};
+    const min = Math.min(...Object.values(trims));
+    return Number.isFinite(min) ? `$${min.toLocaleString('en-US')}` : null;
+  }
+
+  function quoteSubline() {
+    if (state.quoteDraft && state.quoteDraft.step > 0) return `Pick up where you left off: step ${state.quoteDraft.step + 1} of 4.`;
+    const price = quoteStartingPrice();
+    return `A personalized dealer quote in about 2 minutes${price ? ` · From ${price} MSRP` : ''}`;
+  }
+
   function renderQuotePrimary() {
-    const wrap = document.createElement('div');
-    wrap.className = 'primary-prompt primary-prompt--quote';
-
-    const p = document.createElement('p');
-    p.textContent = 'Welcome back. Ready for pricing on the Aurelia GT?';
-    wrap.appendChild(p);
-
-    const getQuote = document.createElement('button');
-    getQuote.type = 'button';
-    getQuote.className = 'btn btn--primary btn--small';
-    getQuote.textContent = quoteCtaLabel();
-    getQuote.setAttribute('aria-controls', 'stickyFlyout');
-    getQuote.setAttribute('aria-expanded', String(state.flyout === 'quote'));
-    getQuote.addEventListener('click', () => {
-      const first = $surface.getBoundingClientRect();
-      if (state.flyout === 'quote') {
-        closeFlyout();
+    const getQuote = h('button', {
+      type: 'button', class: 'btn btn--primary btn--small quote-cta',
+      'aria-controls': 'stickyFlyout', 'aria-expanded': String(state.flyout === 'quote'),
+      onclick: () => {
+        const first = $surface.getBoundingClientRect();
+        if (state.flyout === 'quote') {
+          closeFlyout();
+          animateSurfaceResize(first);
+          return;
+        }
+        log('cta_clicked', quoteCtaLabel() === 'Get My Quote' ? 'get_my_quote' : 'continue_my_quote');
+        openFlyout('quote');
         animateSurfaceResize(first);
-        return;
-      }
-      log('cta_clicked', getQuote.textContent === 'Get My Quote' ? 'get_my_quote' : 'continue_my_quote');
-      openFlyout('quote');
-      animateSurfaceResize(first);
-      focusQuoteHeading();
-    });
-    wrap.appendChild(getQuote);
+        focusQuoteHeading();
+      },
+    },
+    h('span', { class: 'quote-cta__label', text: quoteCtaLabel() }),
+    h('span', { class: 'quote-cta__icon', 'aria-hidden': 'true', innerHTML: ICON_ARROW }));
 
-    const close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'sticky__icon-btn';
-    close.setAttribute('aria-label', 'Dismiss quote prompt');
-    close.innerHTML = closeIcon();
-    close.addEventListener('click', () => dismissQuote());
-    wrap.appendChild(close);
-
-    $primary.appendChild(wrap);
+    $primary.appendChild(h('div', { class: 'primary-prompt primary-prompt--quote' },
+      h('span', { class: 'quote-badge', 'aria-hidden': 'true', innerHTML: ICON_TAG }),
+      h('div', { class: 'quote-copy' },
+        h('p', { class: 'quote-copy__title', text: 'Welcome back. Ready for pricing on the Aurelia GT?' }),
+        h('p', { class: 'quote-copy__sub', text: quoteSubline() })),
+      getQuote,
+      h('button', { type: 'button', class: 'sticky__icon-btn', 'aria-label': 'Dismiss quote prompt', innerHTML: closeIcon(), onclick: () => dismissQuote() })));
   }
 
   function renderNavPrimary() {
@@ -1081,12 +1089,17 @@
   let morphToken = 0;
   const MORPH_EASE = 'cubic-bezier(.2,.8,.2,1)';
 
+  let closeStateTimer = null;
+
   function cancelCtaMorph() {
+    clearTimeout(closeStateTimer);
+    // Always clear the class-driven states too, so nothing can leave the
+    // label hidden once a morph or open/close has been interrupted.
+    $primary.querySelectorAll('.cta-action').forEach((el) => el.classList.remove('is-morphing', 'is-label-out', 'is-label-in'));
     if (!ctaMorph) return;
     morphToken++;
     ctaMorph.anims.forEach((a) => a.cancel());
     ctaMorph = null;
-    $primary.querySelectorAll('.cta-action.is-morphing').forEach((el) => el.classList.remove('is-morphing'));
   }
 
   // Returns false when there's no contextual button to morph (the caller
@@ -1149,8 +1162,10 @@
 
   // The "more" button turning into the modal's close (and back): the label
   // clears, the button collapses to its icon, and the + turns into an ×.
-  // Every animation is cancelled once it finishes, so the class alone holds
-  // the end state (a lingering fill once kept the label hidden after close).
+  // The label's visibility is driven only by classes (is-close hides it,
+  // is-label-out fades it, is-label-in fades it back), never by a script
+  // animation's fill, so its resting state is always "visible" unless the
+  // modal is open. Only the width glide uses the Web Animations API.
   function setCtaCloseState(open) {
     const el = $primary.querySelector('.cta-action--more');
     if (!el) return;
@@ -1158,42 +1173,41 @@
     el.setAttribute('aria-expanded', String(open));
     if (open) el.setAttribute('aria-label', `Close: ${MORE_CONTENT[state.moreOpen].eyebrow}`);
     else el.removeAttribute('aria-label');
-    const label = el.querySelector('.cta-action__label');
     if (prefersReducedMotion) { el.classList.toggle('is-close', open); return; }
 
     const token = ++morphToken;
-    const resize = () => {
+    const glide = () => {
       if (token !== morphToken || !el.isConnected) return;
       const first = el.getBoundingClientRect().width;
+      el.classList.remove('is-label-out');
       el.classList.toggle('is-close', open);
       const last = el.getBoundingClientRect().width;
+      if (!open) el.classList.add('is-label-in');
       el.classList.add('is-morphing');
-      const anims = [el.animate([{ width: `${first}px` }, { width: `${last}px` }], { duration: open ? 300 : 460, easing: MORPH_EASE })];
-      if (!open) {
-        anims.push(label.animate([{ opacity: 0, transform: 'translateX(8px)' }, { opacity: 1, transform: 'none' }],
-          { duration: 240, delay: 240, easing: MORPH_EASE, fill: 'backwards' }));
-      }
-      ctaMorph = { stage: 'in', anims };
-      Promise.all(anims.map((a) => a.finished)).then(() => {
+      const anim = el.animate([{ width: `${first}px` }, { width: `${last}px` }], { duration: open ? 300 : 460, easing: MORPH_EASE });
+      ctaMorph = { stage: 'in', anims: [anim] };
+      // Time-based cleanup (not tied to the animation's promise), so the
+      // button always settles even if an animation is dropped.
+      closeStateTimer = setTimeout(() => {
         if (token !== morphToken) return;
-        anims.forEach((a) => a.cancel());
-        el.classList.remove('is-morphing');
+        anim.cancel();
+        el.classList.remove('is-morphing', 'is-label-in');
         ctaMorph = null;
         if (!open) {
           // The page may have been resized under the modal; catch up.
           if (el.dataset.key !== actionKey(contextualAction(state.activeSection))) morphContextualCta();
           evaluateCrowding();
         }
-      }, () => {});
+      }, open ? 320 : 540);
     };
 
     if (open) {
       // Clear the label first, then collapse to the icon.
-      const fade = label.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
-      ctaMorph = { stage: 'in', anims: [fade] };
-      fade.finished.then(() => { resize(); fade.cancel(); }, () => {});
+      el.classList.add('is-label-out');
+      ctaMorph = { stage: 'in', anims: [] };
+      closeStateTimer = setTimeout(glide, 130);
     } else {
-      resize();
+      glide();
     }
   }
 
@@ -1860,7 +1874,12 @@
     const btn = $primary.querySelector('.primary-prompt--quote .btn--primary');
     if (!btn) return;
     btn.setAttribute('aria-expanded', String(state.flyout === 'quote'));
-    if (state.flyout !== 'quote') btn.textContent = quoteCtaLabel();
+    if (state.flyout !== 'quote') {
+      const label = btn.querySelector('.quote-cta__label');
+      if (label) label.textContent = quoteCtaLabel(); else btn.textContent = quoteCtaLabel();
+      const sub = $primary.querySelector('.quote-copy__sub');
+      if (sub) sub.textContent = quoteSubline();
+    }
   }
 
   function focusQuoteHeading() {
@@ -3887,7 +3906,7 @@
           'The higher-value lead prompt animated over the survey. The survey is queued, not lost — dismiss the Quote and it comes back.',
           'When two prompts compete, the component decides, rather than showing the visitor both.', { kind: 'quote' })
         : note('quote-active', '.primary-prompt--quote', 'The quote prompt takes over',
-          'It temporarily replaces the footer content (green dot, green button) and restores it when dismissed or sent.',
+          'It temporarily replaces the footer content with the boldest card the surface has: dark, with a price-tag badge, a starting price and a bright green button that glints a few times on arrival. It restores the original content when dismissed or sent.',
           'A lead-gen moment that uses the space already there, rather than a modal over the page.', { kind: 'quote' }));
     }
     if (state.noticeActive) {
