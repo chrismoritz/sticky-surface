@@ -145,10 +145,11 @@ you pick a preset by hand.
    the panel's edge glides to its new length and a highlight traces its
    border. Rotation pauses while the bar is hovered or focused.
 6. **Scroll Spy: Contextual CTA (V2)** — the Scroll Spy preset, starting
-   from the top of the page: scroll down and the CTA changes (and
-   cross-fades) to match each section — Design, Interior, Technology,
-   Performance, Shopping. Its demo note updates live ("Right now: Interior →
-   'Interior Features'").
+   from the top of the page. The bar is just a floating button, and as you
+   scroll it becomes the next best action for the section in view (Explore
+   Gallery in Design, View Specs in Performance, Search Inventory in
+   Shopping), cross-fading as it changes. Its demo note updates live
+   ("Right now: Interior → 'Interior Features'").
 7. **Scroll Spy: Section Nav (V2)** — the same scroll tracking, used for
    on-page navigation instead: the bar holds links to the page's sections.
    Click one and the page scrolls straight to it; scroll by hand and the
@@ -293,6 +294,17 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
   the Quote needs the space, the survey steps aside and comes back with the
   rating still picked. Sending it shows a brief thank-you, then the original
   content returns.
+- **A next best action for each block.** In Contextual CTA mode the surface
+  is just a button, with no standing label, because the action itself says
+  where the visitor is. This is close to the coming **Floating Show More
+  Button**, which opens a section's contextual modal while the visitor is in
+  that section. Built on the shared surface, the same button becomes a
+  general next-best-action slot: each block can nominate its own action (a
+  contextual modal, the gallery, specs, inventory), and the button still
+  follows the surface's priority rules, so it steps aside for chat, prompts
+  and required UI instead of floating over them. When the bar holds nothing
+  but that button, the floating and compact shells tighten into a pill
+  around it, so it reads as a floating button rather than a button in a box.
 - **Scroll tracking doubles as on-page navigation.** The same section
   tracking that drives the contextual CTA can instead put section links in
   the bar: clicking one scrolls to it, the current section stays

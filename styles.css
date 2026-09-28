@@ -487,6 +487,19 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
 .sticky[data-presentation="compact"] .sticky__bar { padding: 9px 10px 9px 18px; gap: 10px; }
 .sticky[data-presentation="compact"] .sticky__primary { font-size: .85rem; }
 
+/* A lone CTA (the contextual "next best action"): floating and compact hug
+   the button in a tight pill, so it reads as a floating button rather than
+   a button in a box. Anything else in the bar (utilities, controls, an open
+   panel) and the usual padding returns. */
+.sticky:is([data-presentation="floating"], [data-presentation="compact"])
+  .sticky__surface:has(.sticky__primary > .primary-ctas:only-child):not(:has(.sticky__utilities > *, .sticky__controls > :not([hidden]), .sticky__flyout:not([hidden]))) {
+  border-radius: var(--radius-pill);
+}
+.sticky:is([data-presentation="floating"], [data-presentation="compact"])
+  .sticky__surface:has(.sticky__primary > .primary-ctas:only-child):not(:has(.sticky__utilities > *, .sticky__controls > :not([hidden]), .sticky__flyout:not([hidden]))) .sticky__bar {
+  padding: 6px;
+}
+
 /* -------- Surface finish -------- */
 .sticky[data-surface="opaque"] .sticky__surface { background: var(--paper); }
 .sticky[data-surface="translucent"] .sticky__surface {

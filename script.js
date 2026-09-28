@@ -227,15 +227,17 @@
     {
       id: 'scroll-spy',
       label: 'Scroll Spy: Contextual CTA',
-      hint: 'The CTA follows the section in view',
+      hint: 'A next best action for the section in view',
       version: 'v2',
       group: 'compositions',
       patch: {
+        // Just the button: no standing label, since the action itself says
+        // where the visitor is (the "Floating Show More Button", generalized).
         legacyMode: false, presentation: 'floating', scrollSpy: 'contextual',
-        primaryType: 'message-cta', primary: { message: 'Aurelia GT', cta: { label: 'Schedule a Test Drive' } },
+        primaryType: 'message-cta', primary: { message: '', cta: { label: 'Schedule a Test Drive' } },
         chat: 'off', search: 'off',
       },
-      note: 'Scroll the page: the CTA changes to match each section. The Scroll Spy panel section also has orientation and section-navigation modes.',
+      note: 'Scroll the page: the button changes to the next best action for each section. The Scroll Spy panel section also has orientation and section-navigation modes.',
     },
     {
       id: 'timed-notice',
@@ -2747,7 +2749,7 @@
     3: 'Same component, new content every time — click through the presets below.',
     4: 'Same content, different shell. Use the "Try a look" switcher on the page to change the shape, finish, and entrance (or Next look to step through six), and Appears to set when the bar shows up as you scroll.',
     5: 'Several messages share one slot and rotate on a timer: each rolls into place while the panel\'s edge glides to fit it. Rotation pauses while you hover or focus the bar.',
-    6: 'Scroll the page: the CTA changes to match the section in view, cross-fading as it swaps.',
+    6: 'Scroll the page: the floating button becomes the next best action for the section in view (Explore Gallery in Design, View Specs in Performance…), cross-fading as it swaps.',
     7: 'Section links in the bar: click one to jump straight to that part of the page. The highlight follows as you scroll.',
     8: 'Each utility has its own color. Focus the chat field (blue) or open Search (teal) and the whole surface tints to match. Esc or clicking away closes things.',
     9: 'A partner message (a satellite-radio free weekend) arrives after the Prompt delay and closes itself when the line along the top runs out. Hover or focus the bar to pause it.',
@@ -3507,10 +3509,10 @@
     ],
     'scroll-spy': [
       // Live: the wording tracks the section currently in view.
-      note('scroll-spy', SURFACE, 'The CTA follows the page',
+      note('scroll-spy', SURFACE, 'A next best action for every section',
         (c) => `Right now: ${sectionLabel(state.activeSection)} → “${CONTEXTUAL_CTA[state.activeSection]}”. `
-          + `${c.mobile ? 'Scroll' : 'Scroll the page'} and the CTA swaps to match each section, cross-fading as it changes.`,
-        'The footer stays relevant all the way down the page instead of repeating one message. Scroll Spy also has orientation ("Viewing: Interior") and section-navigation modes.'),
+          + `${c.mobile ? 'Scroll' : 'Scroll the page'} and the button changes to the most useful next step for the section in view, cross-fading and resizing as it goes.`,
+        'This generalizes the coming Floating Show More Button: rather than only opening a section\'s contextual modal, the same button can carry whatever action suits the block in view, and it lives in the shared surface, so it never competes with chat or prompts.'),
     ],
     'timed-notice': [
       note('notice-scenario', SURFACE, 'Ancillary messages that step aside',
