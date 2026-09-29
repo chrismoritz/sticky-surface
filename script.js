@@ -295,6 +295,19 @@
       note: 'After the Prompt delay a personalized $500 offer opens as a pop-up, then moves down into the bar a few seconds later, or as soon as it is closed.',
     },
     {
+      id: 'scroll-spy-chat',
+      label: 'Scroll Spy + Chat',
+      hint: 'The chat field suggests questions for the section in view',
+      version: 'v2',
+      group: 'utilities',
+      patch: {
+        legacyMode: false, presentation: 'floating', scrollSpy: 'contextual',
+        primaryType: 'message-cta', primary: { message: '', cta: { label: 'Schedule a Test Drive' } },
+        chat: 'question', search: 'off',
+      },
+      note: 'Scroll the page: the empty chat field cycles through questions people ask about the section in view, alongside the section\'s next best action.',
+    },
+    {
       id: 'chat-search',
       label: 'Chat + Search',
       hint: 'Test Drive | Ask a Question | Search — each utility in its own color',
@@ -1415,13 +1428,20 @@
     input.addEventListener('focus', () => {
       state.activeInteraction = 'chat';
       log('chat_opened', 'question field focused');
+      syncChatHints();
     });
     input.addEventListener('blur', () => {
       state.activeInteraction = null;
       renderActiveLayer();
       maybeReleasePendingOverlays();
+      syncChatHints();
     });
-    field.appendChild(input);
+    input.addEventListener('input', () => syncChatHints());
+    // The input shares its slot with the rotating example questions (shown
+    // while Scroll Spy is on and the field is empty and idle).
+    field.appendChild(h('span', { class: 'chat-input-wrap' },
+      input,
+      h('span', { class: 'chat-hint', 'aria-hidden': 'true' })));
 
     const send = document.createElement('button');
     send.type = 'button';
@@ -1431,7 +1451,10 @@
     send.innerHTML = '<svg class="icon-send" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 12h16M14 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
       + chatIcon().replace('<svg ', '<svg class="icon-open-chat" ');
     const handoff = () => {
-      const text = input.value.trim();
+      // Sending with nothing typed asks the example question on show.
+      const typed = input.value.trim();
+      const text = typed || (field.dataset.hints === 'on' ? currentChatHint() : '');
+      if (!typed && text) log('chat_hint_used', `${sectionLabel(state.activeSection)}: ${text}`);
       log('cta_clicked', 'chat_send (mock)');
       openChatWindow(text || null);
       input.value = '';
@@ -1452,8 +1475,84 @@
       field.appendChild(imsg);
     }
 
+    // Filled in (and started rotating, where it applies) once it's in the bar.
+    requestAnimationFrame(() => syncChatHints());
     return field;
   }
+
+  /* ------------------------------------------------------------------ *
+   * Contextual chat hints — while Scroll Spy is tracking the section in
+   * view, the empty "Ask a question" field cycles through questions real
+   * shoppers ask about that kind of content, instead of a generic prompt.
+   * Section changes roll straight to that section's first question; the
+   * rotation stops the moment the field is focused or has text (the
+   * current example then becomes the placeholder), pauses while the bar
+   * is hovered or focused, and holds still with reduced motion. Sending
+   * with the field empty asks the example on show.
+   * ------------------------------------------------------------------ */
+
+  var CHAT_HINTS = {
+    hero: ['How much is the Aurelia GT?', "What's the real-world range?", 'Can I test drive one this weekend?'],
+    overview: ['How much is the Aurelia GT?', "What's the real-world range?", 'How far can it go on one charge?'],
+    design: ['What colors does it come in?', 'Are the 21-inch wheels standard?', 'Is the glass roof tinted?'],
+    interior: ['Is the wood trim available in ash?', 'Do the rear seats fold flat?', 'Are the seats ventilated?'],
+    technology: ['Does DriveSense work on back roads?', 'Does it support wireless CarPlay?', 'How do over-the-air updates work?'],
+    performance: ['How long does it take to charge?', 'Is the Performance trim worth it?', 'How does it handle in snow?'],
+    gallery: ['Can I see it in Slate Grey?', 'Is there a 360° interior view?', 'How big is the trunk?'],
+    shopping: ['Is there one in stock near me?', 'What lease deals are available?', 'Can I trade in my current car?'],
+  };
+  const CHAT_HINT_MS = 3600;
+  // `var` (hoisted): evaluateScroll() can reach syncChatHints() during setup.
+  var chatHintIndex = 0;
+  var chatHintSection = null;
+  var chatHintAnims = [];
+
+  function chatHintsFor(section) { return (CHAT_HINTS && CHAT_HINTS[section]) || (CHAT_HINTS && CHAT_HINTS.hero) || ['Ask a question…']; }
+  function currentChatHint() { return chatHintsFor(state.activeSection)[chatHintIndex % chatHintsFor(state.activeSection).length]; }
+
+  function chatHintField() {
+    const field = $utilities.querySelector('.chat-input-field');
+    const input = field?.querySelector('input');
+    // Hidden on phones, where the field collapses to a single chat button.
+    return field && input && input.offsetParent ? { field, input, hint: field.querySelector('.chat-hint') } : null;
+  }
+
+  // Shows (or hides) the example question to match the current state;
+  // `roll` animates the change from the previous one.
+  function syncChatHints({ roll = false } = {}) {
+    const f = chatHintField();
+    if (!f) return;
+    const on = state.scrollSpy !== 'off';
+    const idle = document.activeElement !== f.input && !f.input.value;
+    if (chatHintSection !== state.activeSection) { chatHintSection = state.activeSection; chatHintIndex = 0; roll = true; }
+    const text = currentChatHint();
+    f.field.dataset.hints = on ? 'on' : 'off';
+    // Focused (or typed in): the example becomes the placeholder instead.
+    f.input.placeholder = on ? (idle ? '' : text) : 'Ask a question…';
+    f.hint.hidden = !on || !idle;
+    if (f.hint.hidden) return;
+    const shown = f.hint.querySelector('.chat-hint__text:not(.is-leaving)');
+    if (shown && shown.textContent === text) return;
+    const next = h('span', { class: 'chat-hint__text', text });
+    if (!shown || !roll || prefersReducedMotion) { f.hint.replaceChildren(next); return; }
+    chatHintAnims.forEach((a) => a.cancel());
+    f.hint.querySelectorAll('.is-leaving').forEach((el) => el.remove());
+    shown.classList.add('is-leaving');
+    f.hint.append(next);
+    chatHintAnims = [
+      shown.animate([{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(-70%)' }], { duration: 260, easing: 'cubic-bezier(.4,0,.8,.4)', fill: 'forwards' }),
+      next.animate([{ opacity: 0, transform: 'translateY(70%)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 420, delay: 120, easing: 'cubic-bezier(.22,.8,.22,1)', fill: 'backwards' }),
+    ];
+    chatHintAnims[0].finished.then(() => shown.remove(), () => shown.remove());
+  }
+
+  setInterval(() => {
+    if (prefersReducedMotion || document.hidden || state.rotationPaused || state.flyout || state.moreOpen) return;
+    const f = chatHintField();
+    if (!f || f.field.dataset.hints !== 'on' || f.hint.hidden || $sticky.dataset.visible !== 'true') return;
+    chatHintIndex = (chatHintIndex + 1) % chatHintsFor(state.activeSection).length;
+    syncChatHints({ roll: true });
+  }, CHAT_HINT_MS);
 
   /* ------------------------------------------------------------------ *
    * Corner chat window — a conventional bottom-right widget that the
@@ -3260,6 +3359,7 @@
     if (current !== state.activeSection) {
       state.activeSection = current;
       log('section_changed', sectionLabel(current));
+      syncChatHints({ roll: true });
       if (!state.activeInteraction && state.scrollSpy !== 'off' && !state.surveyActive && !state.quoteActive && !state.noticeActive) {
         // Section nav just moves its highlight — fading the whole nav on every
         // section change would be noise. Label changes (contextual CTA,
@@ -3442,6 +3542,7 @@
 
   radios('scrollspy').forEach((r) => r.addEventListener('change', () => {
     if (!r.checked) return;
+    requestAnimationFrame(() => syncChatHints());
     closeMoreModal('scene changed', { instant: true });
     state.scrollSpy = r.value;
     renderPrimary();
@@ -4350,6 +4451,13 @@
       out.push(note('offer-pop', '.offer-pop__card', 'Personalized, then out of the way',
         'Content from the personalization engine (here, a $500 private offer for a returning visitor) opens as a standard pop-up. The line under it counts down, and hovering or focusing pauses it. Then it moves down into the bar instead of disappearing; closing it early does the same.',
         "A pop-up's impact without its usual cost: it never traps the visitor, and dismissing it doesn't throw the offer away.", { kind: 'offer', prefer: 'side' }));
+    }
+    const hintField = chatHintField();
+    if (hintField && hintField.field.dataset.hints === 'on') {
+      out.push(note('chat-hints', '.chat-input-field', 'Questions that match the page',
+        (c) => `Right now: ${sectionLabel(state.activeSection)}, so the empty chat field suggests questions like “${chatHintsFor(state.activeSection)[0]}”. `
+          + `${c.mobile ? 'Scroll' : 'Scroll the page'} and the examples change with the section; they rotate every few seconds, stop as soon as you ${c.mobile ? 'tap' : 'click'} into the field, and ${c.mobile ? 'tapping' : 'clicking'} send asks the one on show.`,
+        'A blank "Ask a question…" makes the visitor think of something; a relevant example lowers the effort and shows the chat knows what they are looking at.', { kind: 'chat' }));
     }
     if (state.flyout === 'quote' && !state.quoteSubmitted) {
       out.push(note('quote-form', '.quote-flow', 'The full form, in four short steps',

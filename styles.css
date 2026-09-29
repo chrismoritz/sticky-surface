@@ -860,6 +860,18 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   border: none; outline: none; font: inherit; font-size: .88rem; flex: 1 1 auto; min-width: 0; background: transparent;
   align-self: stretch; /* whole pill height is the tap target, not just the text line */
 }
+/* The input and the rotating example questions share one slot. */
+.chat-input-wrap { position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-self: stretch; }
+.chat-input-wrap input { flex: 1 1 auto; }
+.chat-hint {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+  display: flex; align-items: center;
+  font-size: .88rem; color: #7b7f8c;
+}
+.chat-hint[hidden] { display: none; }
+/* Wide enough to show an example question whole (they're kept short). */
+@media (min-width: 721px) { .chat-input-field[data-hints="on"] { min-width: 340px; } }
+.chat-hint__text { position: absolute; left: 0; right: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-input-field .icon-open-chat { display: none; }
 .chat-input-field button {
   border: none; background: var(--chat); color: #fff; border-radius: 50%;
@@ -1130,7 +1142,7 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
      off to the corner chat window anyway, on phones it collapses to that
      hand-off alone: one round chat button, the conventional mobile pattern. */
   .chat-input-field { min-width: 0; padding: 0; border: none; background: none; }
-  .chat-input-field > svg:first-child, .chat-input-field input, .chat-input-field .icon-send { display: none; }
+  .chat-input-field > svg:first-child, .chat-input-field input, .chat-input-field .icon-send, .chat-input-wrap { display: none; }
   .chat-input-field .icon-open-chat { display: block; }
   .chat-input-field button { width: 44px; height: 44px; }
   .chat-widget { flex-shrink: 0; } /* the 44px button is already its minimum */

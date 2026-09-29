@@ -298,6 +298,21 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
   entry point; the conversation moves to a conventional corner window that
   sits just above the bar. A footer can't hold a conversation, and a bubble
   on its own is easy to miss.
+- **The chat field suggests questions that match the page.** Whenever
+  Scroll Spy is on and the "Ask a question" field is showing, the empty
+  field cycles through questions real shoppers ask about the section in
+  view: price and range at the top, colors and wheels in Design, wood trim
+  and seats in Interior, DriveSense and CarPlay in Technology, charging and
+  winter handling in Performance, stock, leases and trade-ins in Shopping.
+  A new section rolls straight to its first question; they rotate every few
+  seconds, pause while the bar is hovered or focused, and stop the moment
+  the visitor clicks into the field (the example on show becomes the
+  placeholder). Sending with nothing typed asks the example on show. The
+  examples are kept short enough to show in full, and hold still with
+  reduced motion; on phones, where the field collapses to a chat button,
+  there's nothing to rotate. Try the **Scroll Spy + Chat** preset, where
+  the field sits beside each section's next best action, so in Technology
+  both are about DriveSense.
 - **One panel, several occupants.** Search results, suggested chat prompts,
   the survey, and the quote form all open in the same panel above the bar,
   so there's one pattern to learn and one space to govern.
@@ -453,6 +468,7 @@ for a pilot:
 | Are prompts welcome, or just tolerated? | Dismissals vs. engagement (`survey_dismissed` vs. `survey_submitted`, `quote_dismissed` vs. `quote_submitted`), and how often a prompt had to wait its turn (`…_triggered — waiting`) |
 | Does personalization pay off, and at what cost? | Offer shown (`offer_shown`), how it reached the bar (`offer_docked`: timed, closed, not now, escape), reopened from the bar (`offer_reopened`), claimed (`offer_claimed`), used on a quote, and bounce vs. pages without the pop-up |
 | Do people come back for what they closed? | Entries saved (`closed_message_saved`, with how it closed) vs. reopened from the end of the page (`closed_message_reopened`), by message type |
+| Do example questions get people chatting? | Conversations started from an example (`chat_hint_used`, with the section) vs. typed questions, and chat starts per section with and without examples |
 | Does "show more" earn its place? | Opens per section (`show_more_opened`), time spent and how it was closed (`show_more_closed`: escape, button, outside click, or the test-drive link inside), and whether visitors who open one go on to a CTA |
 | Does section navigation help people find things? | Jumps from the bar (`section_changed — nav click`), scroll depth, and whether survey ratings for "easy to find" go up |
 | Does targeting pay off? | Quote completion for returning, high-intent visitors vs. a prompt shown to everyone |
