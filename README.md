@@ -177,9 +177,10 @@ you pick a preset by hand.
    image. Click the thumbnail to see it full size again; Claim shows the
    offer code, which can go straight into a quote.
 11. **Survey Takeover** — the survey arrives after the Prompt delay and
-   takes over the bar in violet. **Take Survey** opens a one-question survey
-   inside the surface (a 1–5 rating and an optional comment). Send it or
-   dismiss it and the original content comes back.
+   takes over the bar in violet. **Take Survey** opens the full site survey
+   inside the surface: the twelve questions of a typical automaker intercept
+   survey in four short steps, all optional, with "Send now" on every step.
+   Send it or dismiss it and the original content comes back.
 12. **Quote Takeover** — a returning-visitor quote prompt arrives after the
    Prompt delay and takes over in green. **Get My Quote** opens the
    four-step request form; closing it keeps your progress.
@@ -318,12 +319,34 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
 - **One panel, several occupants.** Search results, suggested chat prompts,
   the survey, and the quote form all open in the same panel above the bar,
   so there's one pattern to learn and one space to govern.
-- **The survey is answered in place.** Take Survey opens a one-question
-  rating (1–5, plus an optional comment) in that panel rather than a vendor
-  popup or a new tab. A stray click doesn't close it or lose the answer; if
-  the Quote needs the space, the survey steps aside and comes back with the
-  rating still picked. Sending it shows a brief thank-you, then the original
-  content returns.
+- **The survey is answered in place, and asks less of people.** It's
+  modeled on a typical automaker site-intercept survey: twelve questions,
+  one per screen, plus an intro and a thank-you, so fourteen screens in a
+  vendor pop-up. Here the same questions take four short steps in the
+  surface's panel (vendor- and brand-neutral):
+  1. *Your visit* — what brought you here (pre-filled from what the visitor
+     did on the page, e.g. Search inventory after reaching Shopping, and
+     labelled "Our guess from your visit"), and did you get it done (Yes /
+     Partly / No). "What got in the way?" appears inline only after Partly
+     or No, instead of being a screen of its own.
+  2. *Your experience* — overall rating (0–10), and the two "has this visit
+     changed…" questions (interest in buying, opinion of the brand) merged
+     into one two-row Lower / Same / Higher grid.
+  3. *Looking ahead* — likelihood to recommend (0–10), how the site compares
+     with other automakers' (or "Haven't visited others"), and next steps as
+     pick-any chips ("Nothing yet" clears the rest).
+  4. *About you (optional)* — purchase timing and shopping stage as chips,
+     and an optional comment.
+  The intro screen is gone (the prompt in the bar already asks, and step 1
+  carries its one line: "About this website only"). Nothing is required,
+  and **Send now** on every step sends whatever has been answered, so a
+  partial answer arrives instead of an abandoned survey. Answers are chips,
+  scales and segmented choices built on real radio and checkbox inputs
+  (arrow keys and screen readers work as usual), with Back/Next pinned like
+  the quote form. A stray click doesn't close it; closing the panel keeps
+  the answers ("Continue Survey"), and so does the quote prompt taking the
+  space. Sending shows a brief thank-you, then the original content
+  returns.
 - **A next best action for each block.** In Contextual CTA mode the surface
   is just a button, with no standing label, because the action itself says
   where the visitor is. It builds on the coming **Floating Show More
@@ -467,6 +490,7 @@ for a pilot:
 | Is the surface earning its space? | Click-through on the surface vs. today's footer (`cta_clicked`), broken down by composition and presentation |
 | Does chat get used more as a built-in entry point than as a bubble? | Conversations started (`chat_opened`), and from which entry point |
 | Where does the quote form lose people? | Step-by-step funnel (`quote_step`), which fields fail validation (`quote_validation`), and completions (`quote_submitted`) |
+| Is the shorter survey finished more often? | Steps reached (`survey_step`), sends (`survey_submitted`, with how many of the 11 answers were given and the step it was sent from), and dismissals, against the vendor survey's completion rate |
 | Are prompts welcome, or just tolerated? | Dismissals vs. engagement (`survey_dismissed` vs. `survey_submitted`, `quote_dismissed` vs. `quote_submitted`), and how often a prompt had to wait its turn (`…_triggered — waiting`) |
 | Does personalization pay off, and at what cost? | Offer shown (`offer_shown`), how it reached the bar (`offer_docked`: timed, closed, not now, escape), reopened from the bar (`offer_reopened`), claimed (`offer_claimed`), used on a quote, and bounce vs. pages without the pop-up |
 | Do people come back for what they closed? | Entries saved (`closed_message_saved`, with how it closed) vs. reopened from the end of the page (`closed_message_reopened`), by message type |

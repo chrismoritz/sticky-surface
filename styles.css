@@ -960,32 +960,69 @@ img.logo-bug { object-fit: cover; }
 .sticky__flyout[data-kind="offer"] .flyout-title { color: var(--offer); }
 
 /* -------- One-question survey (inside the flyout) -------- */
-.survey-flow { width: min(480px, 100%); margin: 0 auto; }
-.survey-flow input[type="radio"] { accent-color: var(--survey); }
-.survey-scale { border: none; margin: 0; padding: 0; }
-.survey-question { padding: 0; margin: 0 0 10px; font-size: .95rem; font-weight: 600; }
-.survey-question:focus { outline: none; }
-.survey-scale__options { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.survey-scale__option {
-  position: relative; display: flex; align-items: center; justify-content: center;
-  min-height: 44px; cursor: pointer; font-weight: 600; font-size: .95rem;
-  background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+.survey-flow { width: min(560px, 100%); margin: 0 auto; }
+/* The survey borrows the quote form's step pattern (progress, heading,
+   pinned Back/Next), in the survey's violet. */
+.survey-flow .quote-progress li.is-done { border-top-color: var(--survey-border); }
+.survey-flow .quote-progress li.is-current { border-top-color: var(--survey); color: var(--survey); }
+.survey-flow .quote-nav { background: var(--survey-tint); }
+.survey-flow .quote-nav .btn--primary { background: var(--survey); }
+.survey-flow .quote-nav .btn--primary:hover { background: #532f80; }
+.survey-nav__end { display: flex; align-items: center; gap: 14px; }
+.survey-flow .quote-link { color: var(--survey); }
+.sq-intro { margin: 0 0 12px; font-size: .78rem; color: var(--grey-600); }
+
+/* One question */
+.sq { border: none; margin: 0 0 14px; padding: 0; min-width: 0; }
+.sq__label { padding: 0; margin: 0 0 8px; font-size: .9rem; font-weight: 600; }
+.sq__hint { font-weight: 400; color: var(--grey-500); }
+.sq__guess {
+  display: inline-block; margin-left: 8px; padding: 1px 8px; vertical-align: 1px;
+  font-size: .68rem; font-weight: 600; letter-spacing: .02em;
+  color: var(--survey); background: color-mix(in srgb, var(--survey) 10%, #fff); border-radius: var(--radius-pill);
+}
+
+/* Chips: real radio/checkbox inputs under tappable labels. */
+.sq-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sq-chips--seg { display: grid; grid-auto-columns: 1fr; grid-auto-flow: column; }
+.sq-chip { position: relative; }
+.sq-chip input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.sq-chip span {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  min-height: 34px; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-pill);
+  background: #fff; font-size: .82rem; line-height: 1.2;
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-/* The real radio stays in place (keyboard + screen readers), just invisible;
-   the whole tile is its hit area. */
-.survey-scale__option input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
-.survey-scale__option:hover { border-color: var(--survey-border); }
-.survey-scale__option:has(input:checked) { background: var(--survey); border-color: var(--survey); color: #fff; }
-.survey-scale__option:has(input:focus-visible) { outline: 2px solid var(--survey); outline-offset: 2px; }
-.survey-scale.is-invalid .survey-scale__option { border-color: var(--danger); }
-.survey-scale__ends { display: flex; justify-content: space-between; margin-top: 6px; font-size: .72rem; color: var(--grey-500); }
-.survey-scale .qf-error { margin: 6px 0 0; }
-.survey-flow .qf textarea { min-height: 64px; }
+.sq-chip:hover span { border-color: var(--survey-border); }
+.sq-chip input:checked + span { background: var(--survey); border-color: var(--survey); color: #fff; }
+.sq-chip input:focus-visible + span { outline: 2px solid var(--survey); outline-offset: 2px; }
+
+/* 0–10 scale */
+.sq-scale { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; }
+.sq-scale__n { position: relative; }
+.sq-scale__n input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.sq-scale__n span {
+  display: flex; align-items: center; justify-content: center; height: 36px;
+  border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; font-size: .85rem; font-weight: 600;
+}
+.sq-scale__n:hover span { border-color: var(--survey-border); }
+.sq-scale__n input:checked + span { background: var(--survey); border-color: var(--survey); color: #fff; }
+.sq-scale__n input:focus-visible + span { outline: 2px solid var(--survey); outline-offset: 2px; }
+.sq-scale__ends { display: flex; justify-content: space-between; margin-top: 5px; font-size: .7rem; color: var(--grey-500); }
+
+/* Two related questions as one compact grid */
+.sq-grid { display: grid; gap: 8px; }
+.sq-grid__row { border: none; margin: 0; padding: 0; min-width: 0; display: grid; grid-template-columns: 9.5em 1fr; align-items: center; gap: 10px; }
+.sq-grid__label { float: left; padding: 0; font-size: .82rem; color: var(--grey-600); }
+.sq-text { margin-bottom: 14px; }
+.survey-flow .qf textarea { min-height: 52px; }
 .survey-flow .qf textarea:focus-visible { outline-color: var(--survey); }
-.survey-nav { display: flex; justify-content: flex-end; margin-top: 12px; }
-.survey-nav .btn--primary { background: var(--survey); }
-.survey-nav .btn--primary:hover { background: #532f80; }
+
+@media (max-width: 480px) {
+  .sq-scale { grid-template-columns: repeat(6, 1fr); }
+  .sq-grid__row { grid-template-columns: 1fr; gap: 6px; }
+  .survey-progress li { font-size: 0; padding-top: 0; }
+}
 .flyout-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .flyout-chips button {
   border: 1px solid var(--line-strong); background: #fff; border-radius: var(--radius-pill);
@@ -1007,6 +1044,9 @@ img.logo-bug { object-fit: cover; }
   max-height: min(64vh, 580px); overflow-y: auto; overscroll-behavior: contain; padding-bottom: 0;
 }
 .sticky__flyout[data-kind="survey"] { max-height: min(64vh, 580px); overflow-y: auto; overscroll-behavior: contain; }
+/* Scrolling to (or tabbing onto) a field stops above the pinned Back/Next
+   bar instead of leaving it hidden underneath. */
+.sticky__flyout[data-kind="survey"], .sticky__flyout[data-kind="quote"] { scroll-padding-bottom: 84px; }
 /* A pill can't hold a form — compact softens to a rounded card while a
    flyout is open, the same way it does for a prompt on phones. */
 .sticky[data-presentation="compact"]:has(.sticky__flyout:not([hidden])) .sticky__surface { border-radius: var(--radius-lg); }

@@ -457,7 +457,7 @@
     pendingNotice: false,
     noticeDuration: 'standard',
     quoteDraft: null, // in-progress multi-step quote form (survives closing the panel)
-    surveyDraft: null, // the one-question survey's answers while it's showing
+    surveyDraft: null, // the survey's step and answers while it's showing (kept if the panel closes)
     surveySubmitted: false,
     vehicleInterest: null, // vehicle the visitor clicked in search results, used to pre-fill the quote
 
@@ -717,7 +717,7 @@
     const takeSurvey = document.createElement('button');
     takeSurvey.type = 'button';
     takeSurvey.className = 'btn btn--primary btn--small';
-    takeSurvey.textContent = 'Take Survey';
+    takeSurvey.textContent = surveyCtaLabel();
     takeSurvey.setAttribute('aria-controls', 'stickyFlyout');
     takeSurvey.setAttribute('aria-expanded', String(state.flyout === 'survey'));
     // Opens the survey in place — in the same panel as chat prompts and the
@@ -2033,7 +2033,10 @@
   // expanded state in step with the panel as it opens and closes.
   function syncQuoteCta() {
     const survey = $primary.querySelector('.primary-prompt--survey .btn--primary');
-    if (survey) survey.setAttribute('aria-expanded', String(state.flyout === 'survey'));
+    if (survey) {
+      survey.setAttribute('aria-expanded', String(state.flyout === 'survey'));
+      if (state.flyout !== 'survey') survey.textContent = surveyCtaLabel();
+    }
     const btn = $primary.querySelector('.primary-prompt--quote .btn--primary');
     if (!btn) return;
     btn.setAttribute('aria-expanded', String(state.flyout === 'quote'));
@@ -2050,68 +2053,252 @@
   }
 
   /* ------------------------------------------------------------------ *
-   * One-question intercept survey — what "Take Survey" opens.
+   * Intercept survey — what "Take Survey" opens.
+   *
+   * Modeled on a typical automaker site-intercept survey: 12 questions,
+   * one per screen, plus an intro and a thank-you (14 screens). Here the
+   * same questions fit four short steps:
+   *   - related questions share a step (the two "has this visit changed…"
+   *     questions become one two-row grid; the shopping-stage and timing
+   *     questions sit together at the end, marked optional);
+   *   - the "what got in the way?" follow-up appears only after "Partly"
+   *     or "No", inline, rather than as its own screen;
+   *   - the visit's purpose is pre-filled from what the visitor did on the
+   *     page, labelled as a guess they can change;
+   *   - nothing is required, and "Send now" on every step sends whatever
+   *     has been answered;
+   *   - closing the panel keeps the answers ("Continue Survey").
+   * Vendor- and brand-neutral: the brand is this prototype's fictional one.
    * ------------------------------------------------------------------ */
 
-  const SURVEY_SCALE = { 1: 'Very difficult', 2: 'Difficult', 3: 'Neither easy nor difficult', 4: 'Easy', 5: 'Very easy' };
+  const SURVEY_STEPS = ['Your visit', 'Your experience', 'Looking ahead', 'About you'];
   const SURVEY_CONFIRM_MS = 2200;
+  const SURVEY_Q = {
+    purpose: {
+      label: 'What brought you here today?',
+      options: [['build', 'Build & price'], ['features', 'Features & specs'], ['pricing', 'Pricing & offers'], ['lineup', 'Explore the lineup'],
+        ['dealer', 'Find a dealer'], ['inventory', 'Search inventory'], ['owner', 'Owner services'], ['support', 'Get help'], ['other', 'Something else']],
+    },
+    done: { label: 'Did you get it done?', options: [['yes', 'Yes'], ['partly', 'Partly'], ['no', 'No']] },
+    overall: { label: 'Overall, how was the site today?', low: 'Very poor', high: 'Outstanding' },
+    impact: {
+      label: 'Because of this visit, your…',
+      rows: [['intent', 'Interest in buying'], ['opinion', 'Opinion of Solstice']],
+      options: [['lower', 'Lower'], ['same', 'Same'], ['higher', 'Higher']],
+    },
+    nps: { label: 'How likely are you to recommend Solstice to a friend?', low: 'Not at all likely', high: 'Extremely likely' },
+    compare: {
+      label: 'Compared with other automaker sites, this one was…',
+      options: [['1', 'Much worse'], ['2', 'Worse'], ['3', 'About the same'], ['4', 'Better'], ['5', 'Much better']],
+      none: ['none', "Haven't visited others"],
+    },
+    next: {
+      label: "What's next for you?",
+      hint: 'Pick any',
+      options: [['research', 'Keep researching'], ['dealer', 'Contact a dealer'], ['inventory', 'Search inventory'], ['buy', 'Buy online'],
+        ['quote', 'Request a quote'], ['drive', 'Book a test drive'], ['other', 'Something else'], ['nothing', 'Nothing yet']],
+    },
+    timing: {
+      label: 'When might you buy or lease?',
+      options: [['1m', 'This month'], ['3m', '2–3 months'], ['6m', '4–6 months'], ['12m', '7–12 months'], ['24m', '1–2 years'], ['later', '2+ years'], ['no', 'Not planning to']],
+    },
+    stage: { label: 'Where are you in shopping?', options: [['looking', 'Just looking'], ['shortlist', 'Narrowing it down'], ['ready', 'Ready to buy']] },
+  };
+
+  // A best guess at the visit's purpose from what the visitor actually did.
+  function guessSurveyPurpose() {
+    if (state.quoteDraft || state.quoteSubmitted) return 'pricing';
+    const sec = state.activeSection;
+    if (sec === 'shopping') return 'inventory';
+    if (['design', 'interior', 'technology', 'performance'].includes(sec)) return 'features';
+    if (sec === 'gallery') return 'lineup';
+    return null;
+  }
+
+  function newSurveyDraft() {
+    const guess = guessSurveyPurpose();
+    return { step: 0, guessed: guess, a: { purpose: guess, next: [] } };
+  }
+
+  function surveyCtaLabel() {
+    const d = state.surveyDraft;
+    return d && (d.step > 0 || Object.keys(d.a).some((k) => k !== 'purpose' && k !== 'next' && d.a[k] != null) || d.a.next?.length) ? 'Continue Survey' : 'Take Survey';
+  }
+
+  // One question as a row of tappable chips (radio or checkbox inputs, so
+  // keyboard and screen-reader behavior come for free).
+  function surveyChips(key, q, { multi = false, wide = false, extra = null } = {}) {
+    const d = state.surveyDraft;
+    const id = `sq-${key}`;
+    const isOn = (v) => (multi ? d.a[key].includes(v) : d.a[key] === v);
+    const opts = extra ? [...q.options, extra] : q.options;
+    return h('fieldset', { class: `sq${wide ? ' sq--wide' : ''}` },
+      h('legend', { class: 'sq__label', id }, q.label,
+        q.hint ? h('span', { class: 'sq__hint', text: ` · ${q.hint}` }) : null,
+        key === 'purpose' && d.guessed && d.a.purpose === d.guessed ? h('span', { class: 'sq__guess', text: 'Our guess from your visit' }) : null),
+      h('div', { class: `sq-chips${q.segmented ? ' sq-chips--seg' : ''}` },
+        opts.map(([v, text]) => h('label', { class: 'sq-chip' },
+          h('input', {
+            type: multi ? 'checkbox' : 'radio', name: id, value: v, checked: isOn(v),
+            onchange: (e) => {
+              if (multi) {
+                const set = new Set(d.a[key]);
+                if (e.target.checked) set.add(v); else set.delete(v);
+                // "Nothing yet" can't go with anything else.
+                if (e.target.checked && v === 'nothing') { set.clear(); set.add('nothing'); }
+                if (e.target.checked && v !== 'nothing') set.delete('nothing');
+                d.a[key] = [...set];
+                renderSurveyForm({ keepFocus: `${id}:${v}` });
+              } else {
+                d.a[key] = v;
+                renderSurveyForm({ keepFocus: `${id}:${v}` });
+              }
+            },
+          }),
+          h('span', { text })))));
+  }
+
+  // 0–10 scale (the overall rating and recommend questions).
+  function surveyScale(key, q) {
+    const d = state.surveyDraft;
+    const id = `sq-${key}`;
+    return h('fieldset', { class: 'sq' },
+      h('legend', { class: 'sq__label', text: q.label }),
+      h('div', { class: 'sq-scale' },
+        Array.from({ length: 11 }, (_, n) => h('label', { class: 'sq-scale__n' },
+          h('input', { type: 'radio', name: id, value: n, checked: d.a[key] === n, 'aria-label': `${n}${n === 0 ? ` — ${q.low}` : n === 10 ? ` — ${q.high}` : ''}`,
+            onchange: () => { d.a[key] = n; renderSurveyForm({ keepFocus: `${id}:${n}` }); } }),
+          h('span', { 'aria-hidden': 'true', text: n })))),
+      h('div', { class: 'sq-scale__ends', 'aria-hidden': 'true' }, h('span', { text: `0 · ${q.low}` }), h('span', { text: `${q.high} · 10` })));
+  }
+
+  // Two "has this visit changed…" questions as one compact grid.
+  function surveyImpact() {
+    const d = state.surveyDraft;
+    const q = SURVEY_Q.impact;
+    return h('div', { class: 'sq', role: 'group', 'aria-labelledby': 'sq-impact' },
+      h('p', { class: 'sq__label', id: 'sq-impact', text: q.label }),
+      h('div', { class: 'sq-grid' },
+        q.rows.map(([key, rowLabel]) => h('fieldset', { class: 'sq-grid__row' },
+          h('legend', { class: 'sq-grid__label', text: rowLabel }),
+          h('div', { class: 'sq-chips sq-chips--seg' },
+            q.options.map(([v, text]) => h('label', { class: 'sq-chip' },
+              h('input', { type: 'radio', name: `sq-${key}`, value: v, checked: d.a[key] === v,
+                onchange: () => { d.a[key] = v; renderSurveyForm({ keepFocus: `sq-${key}:${v}` }); } }),
+              h('span', { text }))))))));
+  }
+
+  function surveyText(key, label, placeholder) {
+    const d = state.surveyDraft;
+    return h('div', { class: 'qf qf--notes sq-text' },
+      h('label', { htmlFor: `sq-${key}` }, label, ' ', h('span', { class: 'qf-opt', text: '(optional)' })),
+      h('textarea', { id: `sq-${key}`, rows: 2, placeholder: placeholder || '', value: d.a[key] || '', oninput: (e) => { d.a[key] = e.target.value; } }));
+  }
+
+  function surveyStepBody(step) {
+    const a = state.surveyDraft.a;
+    const Q = SURVEY_Q;
+    if (step === 0) {
+      return [
+        h('p', { class: 'sq-intro', text: 'About this website only: design, navigation, content.' }),
+        surveyChips('purpose', Q.purpose),
+        a.purpose === 'other' ? surveyText('purposeOther', 'What were you looking for?') : null,
+        surveyChips('done', { ...Q.done, segmented: true }),
+        a.done === 'partly' || a.done === 'no' ? surveyText('blocker', 'What got in the way?') : null,
+      ];
+    }
+    if (step === 1) return [surveyScale('overall', Q.overall), surveyImpact()];
+    if (step === 2) {
+      return [
+        surveyScale('nps', Q.nps),
+        surveyChips('compare', Q.compare, { extra: Q.compare.none }),
+        surveyChips('next', Q.next, { multi: true }),
+        a.next.includes('other') ? surveyText('nextOther', 'What else are you planning?') : null,
+      ];
+    }
+    return [
+      surveyChips('timing', Q.timing),
+      surveyChips('stage', { ...Q.stage, segmented: true }),
+      surveyText('comment', 'Anything we could do better?'),
+    ];
+  }
+
+  function goToSurveyStep(step) {
+    const d = state.surveyDraft;
+    const dir = step > d.step ? 'forward' : 'back';
+    d.step = step;
+    log('survey_step', `${step + 1} of ${SURVEY_STEPS.length} · ${SURVEY_STEPS[step]}`);
+    renderSurveyForm({ animate: true, direction: dir, focus: 'heading' });
+  }
 
   function renderSurveyForm(opts = {}) {
     const first = opts.animate ? $surface.getBoundingClientRect() : null;
+    const scrollTop = $flyout.scrollTop;
     $flyout.innerHTML = '';
-    if (!state.surveyDraft) state.surveyDraft = { rating: null, comment: '', error: null };
+    if (!state.surveyDraft) state.surveyDraft = newSurveyDraft();
     const d = state.surveyDraft;
 
     if (state.surveySubmitted) {
       $flyout.append(h('div', { class: 'survey-flow quote-done', role: 'status' },
         h('p', { class: 'flyout-title', text: 'Thank you' }),
-        h('p', { class: 'quote-done__msg', text: 'Your feedback goes straight to the team that builds this site.' })));
+        h('p', { class: 'quote-done__msg', text: 'Your answers go straight to the team that builds this site.' })));
       animateSurfaceResize(first);
       return;
     }
 
-    $flyout.append(h('form', {
-      class: 'survey-flow', noValidate: true,
-      onsubmit: (e) => { e.preventDefault(); submitSurvey(); },
+    const isLast = d.step === SURVEY_STEPS.length - 1;
+    const form = h('form', {
+      class: `quote-step${opts.direction ? ` is-entering-${opts.direction}` : ''}`,
+      noValidate: true,
+      onsubmit: (e) => { e.preventDefault(); if (isLast) submitSurvey(); else goToSurveyStep(d.step + 1); },
     },
-    h('p', { class: 'flyout-title', text: 'Quick survey · 1 question' }),
-    h('fieldset', { class: `survey-scale${d.error ? ' is-invalid' : ''}`, 'aria-describedby': d.error ? 'surveyError' : null },
-      h('legend', { class: 'survey-question', id: 'surveyQuestion', tabIndex: -1, text: 'How easy was it to find what you were looking for today?' }),
-      h('div', { class: 'survey-scale__options' },
-        Object.entries(SURVEY_SCALE).map(([n, label]) => h('label', { class: 'survey-scale__option' },
-          h('input', {
-            type: 'radio', name: 'survey-rating', value: n, checked: d.rating === Number(n),
-            'aria-label': `${n} — ${label}`,
-            onchange: () => {
-              d.rating = Number(n);
-              if (d.error) { d.error = null; document.getElementById('surveyError')?.remove(); $flyout.querySelector('.survey-scale')?.classList.remove('is-invalid'); }
-            },
-          }),
-          h('span', { 'aria-hidden': 'true', text: n })))),
-      h('div', { class: 'survey-scale__ends', 'aria-hidden': 'true' }, h('span', { text: SURVEY_SCALE[1] }), h('span', { text: SURVEY_SCALE[5] })),
-      d.error ? h('p', { class: 'qf-error', id: 'surveyError', role: 'alert', text: d.error }) : null),
-    h('div', { class: 'qf qf--notes' },
-      h('label', { htmlFor: 'surveyComment' }, 'Anything we could do better? ', h('span', { class: 'qf-opt', text: '(optional)' })),
-      h('textarea', { id: 'surveyComment', value: d.comment, oninput: (e) => { d.comment = e.target.value; } })),
-    h('div', { class: 'survey-nav' },
-      h('button', { type: 'submit', class: 'btn btn--primary btn--small', text: 'Send feedback' }))));
+    surveyStepBody(d.step),
+    h('div', { class: 'quote-nav survey-nav' },
+      d.step > 0 ? h('button', { type: 'button', class: 'quote-link', text: 'Back', onclick: () => goToSurveyStep(d.step - 1) }) : h('span'),
+      h('div', { class: 'survey-nav__end' },
+        isLast ? null : h('button', { type: 'button', class: 'quote-link', text: 'Send now', onclick: () => submitSurvey({ early: true }) }),
+        h('button', { type: 'submit', class: 'btn btn--primary btn--small', text: isLast ? 'Send feedback' : 'Next' }))));
 
+    $flyout.append(h('div', { class: 'survey-flow' },
+      h('p', { class: 'flyout-title', text: `Quick survey · ${SURVEY_STEPS.length} short steps · about a minute` }),
+      h('ol', { class: 'quote-progress survey-progress', 'aria-label': 'Progress' },
+        SURVEY_STEPS.map((name, i) => h('li', { class: i < d.step ? 'is-done' : i === d.step ? 'is-current' : '', 'aria-current': i === d.step ? 'step' : null, text: name }))),
+      h('h3', { class: 'quote-step-title', id: 'surveyQuestion', tabIndex: -1,
+        text: `Step ${d.step + 1} of ${SURVEY_STEPS.length} · ${SURVEY_STEPS[d.step]}${d.step === SURVEY_STEPS.length - 1 ? ' (optional)' : ''}` }),
+      form));
+
+    if (opts.keepFocus) {
+      // Re-rendered after an answer: keep the visitor's place.
+      $flyout.scrollTop = scrollTop;
+      const [name, v] = opts.keepFocus.split(':');
+      $flyout.querySelector(`input[name="${name}"][value="${v}"]`)?.focus({ preventScroll: true });
+    } else {
+      $flyout.scrollTop = 0;
+    }
     animateSurfaceResize(first);
-    // The error is announced (role=alert) and linked via aria-describedby;
-    // focus goes to the radio group so the arrow keys pick a rating directly.
-    if (opts.focus === 'error') $flyout.querySelector('input[name="survey-rating"]')?.focus();
+    if (opts.focus === 'heading') document.getElementById('surveyQuestion')?.focus({ preventScroll: true });
+    syncQuoteCta();
   }
 
-  function submitSurvey() {
+  function surveySummary(a) {
+    const keys = ['purpose', 'done', 'overall', 'intent', 'opinion', 'nps', 'compare', 'next', 'timing', 'stage', 'comment'];
+    const answered = keys.filter((k) => (Array.isArray(a[k]) ? a[k].length : a[k] != null && a[k] !== ''));
+    const bits = [];
+    if (a.purpose) bits.push(`purpose: ${a.purpose}`);
+    if (a.done) bits.push(`done: ${a.done}`);
+    if (a.overall != null) bits.push(`overall ${a.overall}/10`);
+    if (a.nps != null) bits.push(`recommend ${a.nps}/10`);
+    return `${answered.length} of ${keys.length} answered${bits.length ? ` · ${bits.join(' · ')}` : ''}`;
+  }
+
+  function submitSurvey({ early = false } = {}) {
     const d = state.surveyDraft;
-    if (!d.rating) {
-      d.error = 'Choose a rating from 1 to 5.';
-      log('survey_validation', 'rating missing');
-      renderSurveyForm({ animate: true, focus: 'error' });
-      return;
-    }
+    // Follow-ups whose question is no longer showing aren't sent.
+    if (d.a.done !== 'partly' && d.a.done !== 'no') delete d.a.blocker;
+    if (d.a.purpose !== 'other') delete d.a.purposeOther;
+    if (!d.a.next.includes('other')) delete d.a.nextOther;
     state.surveySubmitted = true;
-    log('survey_submitted', `rating ${d.rating}/5 (${SURVEY_SCALE[d.rating]})${d.comment.trim() ? ' + comment' : ''}`);
+    log('survey_submitted', `${surveySummary(d.a)}${early ? ` (sent at step ${d.step + 1})` : ''}`);
     renderSurveyForm({ animate: true });
     // Same pattern as the quote: long enough to read the thank-you, then
     // the survey hands the space back on its own.
@@ -4533,9 +4720,12 @@
         'A low-stakes message gets its moment without anyone having to dismiss it, and never lingers.', { kind: 'notice' }));
     }
     if (state.flyout === 'survey' && !state.surveySubmitted) {
-      out.push(note('survey-form', '.survey-flow', 'Answered in place',
-        'Take Survey opens a one-question survey in the same panel as chat prompts and the quote form — not a new tab or a vendor popup. Answer it or close it and the original content comes back.',
-        'Visitors give feedback without losing their place on the page, and the answer lands in the same analytics stream as everything else.', { kind: 'survey' }));
+      out.push(note('survey-form', '.survey-flow', 'Twelve questions, four short steps',
+        {
+          desktop: 'A typical automaker site survey asks 12 questions on 14 screens. Here related questions share a step, the "what got in the way?" follow-up only appears when it applies, the visit\'s purpose is pre-filled from what the visitor did, and nothing is required: Send now works on every step. Closing the panel keeps the answers.',
+          mobile: 'A typical automaker site survey asks 12 questions on 14 screens. Here related questions share a step, the follow-up only appears when it applies, the visit\'s purpose is pre-filled, and nothing is required: Send now works on every step. Closing keeps the answers.',
+        },
+        'Fewer screens and no dead ends mean more people finish, and a partial answer still arrives instead of being abandoned. It all happens in the surface, not a vendor pop-up.', { kind: 'survey' }));
     } else if (state.surveyActive) {
       out.push(note('survey-active', '.primary-prompt--survey', 'The survey takes over',
         'The survey briefly replaces the footer content (violet dot, violet button), then hands the space back.',
@@ -4718,6 +4908,10 @@
           b = box(b.left, hit.top - hgt - gap);
         }
         b = box(b.left, Math.max(8, Math.min(b.top, vh - hgt - 8)));
+        // Still on top of the bar (a tall survey or form on a phone leaves
+        // no room above it): skip the note rather than cover the bar's own
+        // controls, such as its ×. It comes back once there's room.
+        if (overlaps(b, $surface.getBoundingClientRect())) { el.style.visibility = 'hidden'; return; }
       }
 
       el.style.left = `${Math.round(b.left)}px`;
