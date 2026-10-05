@@ -133,9 +133,11 @@ you pick a preset by hand.
    "Schedule a Test Drive" and an inline "Ask a Question" chat field living
    in one coordinated surface. Send a question to hand off to the corner
    chat window.
-3. **Flexibility** — jump into the preset list and click through Search
-   Inventory, Brand Story (F1), and the various Chat/Search entry points.
-   Same component, new content every time.
+3. **Flexibility** — starts on Brand Story: a Formula 1 team story with a
+   logo bug, a headline ("Formula 1: Solstice Racing is on the grid"), one
+   supporting line and an "Explore the Team" text link. Then jump into the
+   preset list and click through Search Inventory and the various
+   Chat/Search entry points. Same component, new content every time.
 4. **Presentation** — a "Try a look" switcher appears on the page (top
    right; under the Prototype Controls pill on phones). **Next look** steps
    through six curated combinations of shape (full-width / floating /
@@ -592,11 +594,21 @@ Two ways to show what happens when several things want the same real estate:
 
 The **Presentation** section has a **Primary CTA style** toggle (Button /
 Text link). Editorial, brand-forward compositions — like Brand Story — default to
-the text-link treatment ("Formula 1 — Explore the Team
-→") since a pill button reads as harder-sell than that content warrants;
+the text-link treatment ("Explore the Team →") since a pill button reads as
+harder-sell than that content warrants;
 commerce-forward presets (Tesla-Inspired, HVB + Chat) keep the button. The
 toggle applies to whichever composition is currently shown, so any preset
 can be previewed either way.
+
+Any message can also carry a small image (a "logo bug") and a supporting
+line beside its headline. Brand Story uses both: a placeholder Solstice
+Racing roundel, "Formula 1: Solstice Racing is on the grid", and "The
+engineers behind Aurelia GT's dual motors now race at the sport's top
+level." In floating and compact the surface widens to show the line whole;
+on phones the supporting line steps aside and the link sits under the
+headline, beside the logo. The logo is an inline SVG placeholder in
+`LOGO_BUGS` (`script.js`); a real asset only needs a `src` there, and it
+renders as an `<img>` with its alt text.
 
 A small **Active layer** readout stays pinned to the top of the panel and
 updates on every state change, naming which tier of the priority model is

@@ -69,6 +69,29 @@
     return { actions, more };
   }
 
+  // Small images ("logo bugs") a message can carry beside its copy.
+  // Placeholders: inline SVG so the prototype stays self-contained. A real
+  // asset just needs `src` instead of `svg` (rendered as an <img>).
+  const LOGO_BUGS = {
+    'solstice-racing': {
+      alt: 'Solstice Racing team logo',
+      svg: `<svg viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="20" fill="#0c0c0d"/>
+        <circle cx="20" cy="20" r="16.5" fill="none" stroke="#c9a96e" stroke-width="1"/>
+        <text x="20" y="22.5" text-anchor="middle" font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12.5" font-weight="800" letter-spacing="-.4" fill="#fff">SR</text>
+        <g fill="#fff"><rect x="13" y="26" width="2.8" height="2.8"/><rect x="18.6" y="26" width="2.8" height="2.8"/><rect x="24.2" y="26" width="2.8" height="2.8"/><rect x="15.8" y="28.8" width="2.8" height="2.8"/><rect x="21.4" y="28.8" width="2.8" height="2.8"/></g>
+      </svg>`,
+    },
+  };
+
+  function buildLogoBug(key) {
+    const bug = LOGO_BUGS[key];
+    if (!bug) return null;
+    return bug.src
+      ? h('img', { class: 'logo-bug', src: bug.src, alt: bug.alt, width: 40, height: 40 })
+      : h('span', { class: 'logo-bug', role: 'img', 'aria-label': bug.alt, innerHTML: bug.svg });
+  }
+
   const ROTATING_MESSAGES = [
     'Explore Formula 1',
     'Meet our latest concept',
@@ -148,12 +171,18 @@
     {
       id: 'brand-story',
       label: 'Brand Story',
-      hint: 'Formula 1 | Explore the Team',
+      hint: 'Logo bug | Formula 1 headline + line | Explore the Team',
       version: 'v1',
       group: 'compositions',
       patch: {
         legacyMode: false, scrollSpy: 'off', ctaStyle: 'text-link',
-        primaryType: 'message-cta', primary: { message: 'Formula 1', cta: { label: 'Explore the Team' } },
+        primaryType: 'message-cta',
+        primary: {
+          badge: 'solstice-racing',
+          message: 'Formula 1: Solstice Racing is on the grid',
+          sub: "The engineers behind Aurelia GT's dual motors now race at the sport's top level.",
+          cta: { label: 'Explore the Team' },
+        },
         chat: 'off', search: 'off',
       },
     },
@@ -950,7 +979,18 @@
       const p = document.createElement('p');
       p.className = 'primary-message';
       p.textContent = messageText;
-      $primary.appendChild(p);
+      // Optional richer composition: a logo bug and a supporting line beside
+      // the headline (static messages only; rotation swaps the headline).
+      const feature = state.messageMode === 'static' && (data.badge || data.sub);
+      if (feature) {
+        $primary.appendChild(h('div', { class: 'primary-feature' },
+          buildLogoBug(data.badge),
+          h('div', { class: 'primary-feature__copy' },
+            p,
+            data.sub ? h('p', { class: 'primary-sub', text: data.sub }) : null)));
+      } else {
+        $primary.appendChild(p);
+      }
     }
 
     if (ctaLabel && state.scrollSpy === 'contextual' && state.ctaStyle !== 'text-link') {
@@ -2349,7 +2389,7 @@
   // whole bar overflowing) would ever prompt the floating panel to grow;
   // everyday cases — a message or CTA a bit longer than usual — would just
   // quietly ellipsize instead, even with plenty of viewport room to spare.
-  const TRUNCATABLE_SELECTOR = '.primary-nav, .primary-message, .primary-ctas .btn, .cta-action__label, .cta-textlink, .rotator__msg, .primary-prompt p';
+  const TRUNCATABLE_SELECTOR = '.primary-nav, .primary-message, .primary-sub, .primary-ctas .btn, .cta-action__label, .cta-textlink, .rotator__msg, .primary-prompt p';
 
   function barIsOverflowing() {
     const anyTruncated = Array.from($stickyBar.querySelectorAll(TRUNCATABLE_SELECTOR))
@@ -3484,8 +3524,15 @@
     if (!r.checked) return;
     state.presentation = r.value;
     log('sticky_variant_changed', 'presentation → ' + r.value);
+    // A new shell gets a fresh "does it fit?" decision, and a second look
+    // once its width transition has settled: measured mid-transition (still
+    // at the previous shell's width), long content like Brand Story's link
+    // looked like it fit, the shell never expanded, and the link was clipped.
+    state.panelExpanded = false;
+    $sticky.dataset.expanded = 'false';
     applyVisibility();
     evaluateCrowding();
+    setTimeout(evaluateCrowding, getDurMedMs() + 60);
   }));
 
   radios('surface').forEach((r) => r.addEventListener('change', () => {
@@ -4275,7 +4322,10 @@
     ],
     'brand-story': [
       note('brand', SURFACE, 'Editorial content, lighter touch',
-        'Same component, but the CTA renders as a text link and there are no utilities.',
+        {
+          desktop: 'Same component, editorial composition: a small logo bug, a headline with one supporting line, and a text link instead of a button. No utilities.',
+          mobile: 'Same component, editorial composition: a small logo bug, a headline, and a text link instead of a button. On phones the supporting line steps aside so the headline can breathe.',
+        },
         "Brand storytelling (F1, concept cars) doesn't need a hard-sell button. The component adapts its tone per placement instead of forcing one style."),
     ],
     'search-utility': [

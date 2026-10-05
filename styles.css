@@ -617,6 +617,35 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   .ticker__track { animation: none; }
 }
 
+/* Feature composition: logo bug + headline + supporting line (Brand Story). */
+.primary-feature { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.logo-bug {
+  flex: none; display: block; width: 40px; height: 40px; border-radius: 50%; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.08);
+}
+.logo-bug svg { display: block; width: 100%; height: 100%; }
+img.logo-bug { object-fit: cover; }
+.primary-feature__copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.primary-feature .primary-message { font-weight: 600; }
+.primary-sub { margin: 0; font-size: .82rem; line-height: 1.35; color: var(--grey-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sticky[data-presentation="compact"] .logo-bug { width: 34px; height: 34px; }
+@media (max-width: 480px) {
+  /* Phones: logo bug beside a headline with the link stacked under it,
+     rather than three things squeezed onto one line. */
+  .sticky__primary:has(> .primary-feature) {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; row-gap: 2px; align-items: center;
+  }
+  .sticky__primary > .primary-feature { display: contents; }
+  .sticky__primary > .primary-feature .logo-bug { grid-row: span 2; }
+  .sticky__primary:has(> .primary-feature) > .cta-textlink { grid-column: 2; justify-self: start; }
+  .logo-bug { width: 34px; height: 34px; }
+  .primary-sub { display: none; }
+  .primary-feature .primary-message {
+    white-space: normal; line-height: 1.25;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  }
+}
+
 /* Rotating message roll (script.js rotateMessage): the outgoing line is
    laid over the incoming one while the pair animates, then both are
    replaced by plain text again. */
