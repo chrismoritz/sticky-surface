@@ -404,6 +404,7 @@
     legacyMode: true,
     presentation: 'full-width',
     surface: 'opaque',
+    halo: 'off', // 'on': frosted halo behind the compact pill
     visibility: 'always',
     sectionReachTarget: 'design',
     entrance: 'fade',
@@ -660,6 +661,7 @@
     $sticky.dataset.minimized = String(collapsed);
     $sticky.dataset.presentation = state.presentation;
     $sticky.dataset.surface = state.surface;
+    $sticky.dataset.halo = state.halo === 'on' ? 'on' : 'off';
     $sticky.dataset.survey = String(state.surveyActive);
     $sticky.dataset.quote = String(state.quoteActive);
     $sticky.dataset.notice = String(state.noticeActive);
@@ -3728,6 +3730,13 @@
     applyVisibility();
   }));
 
+  const $haloToggle = document.getElementById('haloToggle');
+  $haloToggle.addEventListener('change', () => {
+    state.halo = $haloToggle.checked ? 'on' : 'off';
+    log('sticky_variant_changed', `pill halo ${state.halo}${state.presentation === 'compact' ? '' : ' (applies to Compact / pill)'}`);
+    applyVisibility();
+  });
+
   radios('ctastyle').forEach((r) => r.addEventListener('change', () => {
     if (!r.checked) return;
     state.ctaStyle = r.value;
@@ -3993,12 +4002,12 @@
   // "Next look" walks these in order: each differs from the last in shape,
   // finish and entrance, so every click is a visible change.
   const LOOKS = [
-    { presentation: 'floating', surface: 'opaque', entrance: 'slide' },
-    { presentation: 'compact', surface: 'opaque', entrance: 'rise' },
-    { presentation: 'floating', surface: 'translucent', entrance: 'fade' },
-    { presentation: 'full-width', surface: 'bordered', entrance: 'rise' },
-    { presentation: 'compact', surface: 'translucent', entrance: 'slide' },
-    { presentation: 'full-width', surface: 'opaque', entrance: 'fade' },
+    { presentation: 'floating', surface: 'opaque', entrance: 'slide', halo: 'off' },
+    { presentation: 'compact', surface: 'opaque', entrance: 'rise', halo: 'on' },
+    { presentation: 'floating', surface: 'translucent', entrance: 'fade', halo: 'off' },
+    { presentation: 'full-width', surface: 'bordered', entrance: 'rise', halo: 'off' },
+    { presentation: 'compact', surface: 'translucent', entrance: 'slide', halo: 'on' },
+    { presentation: 'full-width', surface: 'opaque', entrance: 'fade', halo: 'off' },
   ];
   const LOOK_WORDS = {
     'full-width': 'Full-width', floating: 'Floating', compact: 'Compact',
@@ -4011,15 +4020,18 @@
     surface: { radio: 'surface' },
     entrance: { select: 'entranceSelect' },
     visibility: { select: 'visibilitySelect' },
+    halo: { checkbox: 'haloToggle' },
   };
 
   function setPanelControl(key, value) {
     const c = LOOK_CONTROLS[key];
     const el = c.radio
       ? document.querySelector(`input[name="${c.radio}"][value="${value}"]`)
-      : document.getElementById(c.select);
+      : document.getElementById(c.select || c.checkbox);
     if (!el) return;
-    if (c.radio) el.checked = true; else el.value = value;
+    if (c.radio) el.checked = true;
+    else if (c.checkbox) el.checked = value === 'on';
+    else el.value = value;
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
@@ -4028,7 +4040,8 @@
   }
 
   function currentLookIndex() {
-    return LOOKS.findIndex((l) => l.presentation === state.presentation && l.surface === state.surface && l.entrance === state.entrance);
+    return LOOKS.findIndex((l) => l.presentation === state.presentation && l.surface === state.surface && l.entrance === state.entrance
+      && (state.presentation !== 'compact' || l.halo === state.halo));
   }
 
   function cancelLookReplay() {
@@ -4072,8 +4085,12 @@
       if (r) r.checked = true;
     });
     document.getElementById('lookSectionLabel').textContent = sectionLabel(state.sectionReachTarget);
+    // The halo only exists on the pill.
+    const halo = $look.querySelector('input[name="look-halo"]');
+    halo.checked = state.halo === 'on';
+    halo.disabled = state.presentation !== 'compact';
     const i = currentLookIndex();
-    const words = `${LOOK_WORDS[state.presentation]}, ${LOOK_WORDS[state.surface]}, ${LOOK_WORDS[state.entrance]}`;
+    const words = `${LOOK_WORDS[state.presentation]}${state.presentation === 'compact' && state.halo === 'on' ? ' with halo' : ''}, ${LOOK_WORDS[state.surface]}, ${LOOK_WORDS[state.entrance]}`;
     $lookCounter.textContent = i >= 0 ? `Look ${i + 1} of ${LOOKS.length}: ${words}` : `Custom: ${words}`;
     syncLookStatus();
   }
@@ -4128,6 +4145,7 @@
   $look.addEventListener('change', (e) => {
     const key = e.target.name && e.target.name.replace(/^look-/, '');
     if (!LOOK_CONTROLS[key]) return;
+    if (key === 'halo') { setPanelControl('halo', e.target.checked ? 'on' : 'off'); return; }
     setPanelControl(key, e.target.value);
     if (key === 'visibility') {
       // Start from the top so the trigger can be watched as it happens.
@@ -4215,6 +4233,7 @@
   function syncControlsFromState() {
     setRadio('presentation', state.presentation);
     setRadio('surface', state.surface);
+    document.getElementById('haloToggle').checked = state.halo === 'on';
     setRadio('ctastyle', state.ctaStyle);
     setRadio('dismiss', state.dismissMode);
     setRadio('message', state.messageMode);
@@ -4287,7 +4306,7 @@
   const PARAM_FIELD_MAP = {
     pr: 'presentation', sf: 'surface', cs: 'ctaStyle', vis: 'visibility',
     ent: 'entrance', an: 'animSpeed', dm: 'dismissMode', mm: 'messageMode',
-    ch: 'chat', se: 'search', dv: 'device', ss: 'scrollSpy', pd: 'promptDelay',
+    ch: 'chat', se: 'search', dv: 'device', ss: 'scrollSpy', pd: 'promptDelay', ha: 'halo',
   };
 
   function currentStateParams() {

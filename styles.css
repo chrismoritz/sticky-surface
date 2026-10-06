@@ -529,6 +529,48 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   border: 1px solid var(--line);
   box-shadow: var(--shadow-elevated);
 }
+/* -------- Pill halo (optional, compact only) --------
+   A frosted zone behind and around the pill that blurs the page under it
+   and feathers out to nothing, so the pill lifts off the content. The halo
+   shares the pill's grid cell and is stretched past it with negative
+   margins, so it tracks the pill's size through every resize, expansion
+   and minimize without any script. Two crossed gradient masks feather it:
+   fully frosted at the pill's edge, gone at the halo's. */
+.sticky__halo { display: none; }
+.sticky[data-presentation="compact"][data-halo="on"][data-visible="true"] {
+  display: grid; grid-template-areas: "pill"; justify-content: end; align-content: end;
+}
+.sticky[data-presentation="compact"][data-halo="on"] > .sticky__surface,
+.sticky[data-presentation="compact"][data-halo="on"] > .sticky__halo { grid-area: pill; }
+.sticky[data-presentation="compact"][data-halo="on"] > .sticky__halo {
+  --halo-x: 36px; --halo-top: 30px;
+  display: block; align-self: stretch; justify-self: stretch;
+  margin: calc(var(--halo-top) * -1) calc(var(--halo-x) * -1) -16px;
+  border-radius: 48px; pointer-events: none;
+  background: rgba(255,255,255,.16);
+  -webkit-backdrop-filter: blur(10px) saturate(115%);
+  backdrop-filter: blur(10px) saturate(115%);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 var(--halo-x), #000 calc(100% - var(--halo-x)), transparent),
+    linear-gradient(to bottom, transparent, #000 var(--halo-top), #000);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent, #000 var(--halo-x), #000 calc(100% - var(--halo-x)), transparent),
+    linear-gradient(to bottom, transparent, #000 var(--halo-top), #000);
+  mask-composite: intersect;
+  animation: haloIn var(--dur-med) var(--ease) both;
+}
+@keyframes haloIn { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 720px) {
+  .sticky[data-presentation="compact"][data-halo="on"] > .sticky__halo { --halo-x: 24px; --halo-top: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sticky[data-presentation="compact"][data-halo="on"] > .sticky__halo { animation: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .sticky[data-presentation="compact"][data-halo="on"] > .sticky__halo { display: none; }
+}
+
 /* Same opportunistic-expansion deal as floating, scaled down to stay
    clearly more compact — see the floating rule above for the math proving
    this can only gain room, never shrink the pill, at any viewport width. */
@@ -1447,6 +1489,16 @@ img.logo-bug { object-fit: cover; }
 .look-seg label:hover span { background: #26272e; color: #fff; }
 .look-seg input:checked + span { background: #e7e7ea; color: #131418; font-weight: 600; }
 .look-seg input:focus-visible + span { outline: 2px solid #5eff9a; outline-offset: 1px; }
+.look-halo { position: relative; }
+.look-halo input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.look-halo span {
+  display: flex; align-items: center; min-height: 34px; padding: 0 10px; border-radius: 17px;
+  background: #1d1e24; border: 1px solid #2c2d34; color: #c9cad1; font-size: .68rem;
+}
+.look-halo input:checked + span { background: #e7e7ea; color: #131418; font-weight: 600; }
+.look-halo input:focus-visible + span { outline: 2px solid #5eff9a; outline-offset: 1px; }
+.look-halo input:disabled { cursor: not-allowed; }
+.look-halo input:disabled + span { opacity: .35; }
 .look-replay {
   width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
   background: #1d1e24; color: #e7e7ea; border: 1px solid #2c2d34; font-size: 1rem;

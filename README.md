@@ -141,8 +141,8 @@ you pick a preset by hand.
 4. **Presentation** — a "Try a look" switcher appears on the page (top
    right; under the Prototype Controls pill on phones). **Next look** steps
    through six curated combinations of shape (full-width / floating /
-   compact), finish (opaque / glass / bordered) and entrance (fade / slide /
-   rise), replaying the entrance each time; each row can also be set
+   compact, optionally with a blur halo), finish (opaque / glass / bordered)
+   and entrance (fade / slide / rise), replaying the entrance each time; each row can also be set
    directly, and ↻ replays the entrance. **Appears** sets when the bar
    shows up: on load, after 10% or 25% of the page, past the hero, or at a
    section. Picking a trigger returns to the top so you can scroll down and
@@ -553,6 +553,21 @@ occupying a fixed-width box regardless of how little it holds. Search
 Utility is the deliberate exception — its field still stretches to fill
 available width, since a search box is meant to invite typing, not hug
 itself into a chip.
+
+### A blur halo for the pill
+
+Compact / pill has an optional **halo** (Presentation → Pill halo, or the
+Halo toggle in step 4's "Try a look" switcher, where two of the six looks
+use it). It's a frosted zone behind and around the pill: the page under it
+is blurred and very lightly washed, strongest at the pill's edge and
+feathering out to nothing about 30px away, so the pill reads as lifted off
+whatever it's floating over (text, imagery or the dark hero) without a
+heavier shadow or border. The halo sits in the same grid cell as the pill
+and is stretched past it with negative margins, so it follows the pill
+through every resize, expansion, open panel and minimize without any
+script. It's skipped when the visitor prefers reduced transparency, appears
+without its fade-in when they prefer reduced motion, and is carried in
+shared links (`ha=on`).
 
 ### Floating and compact both expand before they ever collapse anything
 
