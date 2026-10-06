@@ -605,6 +605,7 @@
     else delete $sticky.dataset.kind;
 
     renderDemoNotes();
+    scheduleEndDockCheck();
     if (!$activeLayerReadout) return;
     const arriving = Object.entries(scheduled).map(([k, v]) =>
       `${promptName(k)} arriving in ${Math.max(0, (v.dueAt - performance.now()) / 1000).toFixed(1)}s`);
@@ -646,7 +647,7 @@
     // layer at all. "collapsed" governs whether it's showing full content
     // or just a restore pill — dismissing with a restore affordance keeps
     // the component in the layer, just collapsed, so the pill stays visible.
-    const shouldShow = state.legacyMode ? false : state.scrollVisible && !state.fullyDismissed;
+    const shouldShow = state.legacyMode ? false : state.scrollVisible && !state.fullyDismissed && !endDockHidesBar();
     const collapsed = state.minimized || (state.dismissed && state.dismissMode === 'dismissible-restore');
 
     const wasVisible = $sticky.dataset.visible === 'true';
@@ -695,6 +696,9 @@
   }
 
   function renderPrimary() {
+    // A prompt or panel arriving while the button is docked at the end of
+    // the page brings the bar back to host it.
+    if (endDockHidesBar && endDockHidesBar() && endDockBlocked()) resetEndDock();
     $primary.innerHTML = '';
     $primary.classList.toggle('is-fluid', !state.surveyActive && !state.quoteActive && !state.noticeActive && state.scrollSpy === 'off' && state.primaryType === 'search-inline');
 
@@ -1233,6 +1237,7 @@
       el.classList.remove('is-morphing');
       ctaMorph = null;
       evaluateCrowding();
+      scheduleEndDockCheck(); // a hand-over may have been waiting on this morph
     }, () => {});
     renderActiveLayer();
   }
@@ -1520,6 +1525,196 @@
     // Filled in (and started rotating, where it applies) once it's in the bar.
     requestAnimationFrame(() => syncChatHints());
     return field;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * A deliberate end to the pinned experience
+   *
+   * When the floating button's action is also the main button of the
+   * section's own call-to-action row (Shopping's "Search Inventory"), the
+   * pinned experience ends there: as that row rises above the bar, the
+   * floating button flies up into its in-page twin and splits into the
+   * row's buttons, and the bar steps away. Scroll back up and the buttons
+   * merge and fly back down into the bar. Until then the row's buttons
+   * keep their place in the layout but stay invisible, so the page never
+   * shows the same button twice. With reduced motion it's a plain swap.
+   * ------------------------------------------------------------------ */
+
+  // `var` (hoisted): evaluateScroll() runs this during setup.
+  var endDock = { phase: 'pinned', row: null, main: null, barTop: 0, ghosts: [] };
+  const END_FLY_MS = 520;
+  const END_SPLIT_MS = 420;
+
+  // The section row whose main button is the floating button's action.
+  function endDockRow() {
+    if (state.scrollSpy !== 'contextual' || state.legacyMode || state.ctaStyle === 'text-link') return null;
+    const main = document.querySelector('.hero__ctas [data-next-action]');
+    const row = main?.closest('.hero__ctas');
+    const section = row?.closest('section[id]');
+    if (!row || !section) return null;
+    const action = contextualAction(section.id);
+    return action.kind === 'link' && action.label === main.textContent.trim() ? { row, main, section } : null;
+  }
+
+  // Only a bar that holds nothing but the floating button can hand over to
+  // the page; anything else (a prompt, chat, an open panel) keeps it pinned.
+  function endDockBlocked() {
+    return !!(state.surveyActive || state.quoteActive || state.noticeActive || state.primaryType === 'offer'
+      || state.flyout || state.moreOpen || state.minimized || state.fullyDismissed || !state.scrollVisible
+      || $utilities.children.length || state.chatWindowOpen);
+  }
+
+  function setRowWaiting(row, waiting) {
+    row?.classList.toggle('is-dock-waiting', waiting);
+  }
+
+  function clearEndGhosts() {
+    endDock.ghosts.forEach((g) => g.remove());
+    endDock.ghosts = [];
+  }
+
+  // A copy of an element, positioned on the page at a given rect.
+  function endGhost(rect, ...children) {
+    const g = h('div', { class: 'end-ghost', 'aria-hidden': 'true' }, ...children);
+    Object.assign(g.style, { left: `${rect.left + window.scrollX}px`, top: `${rect.top + window.scrollY}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+    document.body.append(g);
+    endDock.ghosts.push(g);
+    return g;
+  }
+  const pageBox = (r) => ({ left: `${r.left + window.scrollX}px`, top: `${r.top + window.scrollY}px`, width: `${r.width}px`, height: `${r.height}px` });
+  const copyOf = (el) => { const c = el.cloneNode(true); c.removeAttribute('id'); c.removeAttribute('data-next-action'); c.tabIndex = -1; return c; };
+
+  function evaluateEndDock() {
+    if (!endDock || !$utilities) return;
+    const target = endDockRow();
+    // Not this kind of scene (or a busy bar): make sure nothing is held back.
+    if (!target || (endDockBlocked() && endDock.phase === 'pinned')) {
+      if (endDock.phase === 'docked' || endDock.phase === 'docking') resetEndDock();
+      document.querySelectorAll('.hero__ctas.is-dock-waiting').forEach((r) => r.classList.remove('is-dock-waiting'));
+      return;
+    }
+    if (endDock.phase === 'docking' || endDock.phase === 'undocking') return;
+    const rowRect = target.row.getBoundingClientRect();
+    const rowMid = rowRect.top + rowRect.height / 2;
+    if (endDock.phase === 'pinned') {
+      // Never two copies of the same button on screen: the row's buttons
+      // wait (invisibly, in place) only while the bar shows the same action.
+      const sameAction = state.activeSection === target.section.id;
+      setRowWaiting(target.row, sameAction);
+      const barTop = $surface.getBoundingClientRect().top;
+      if (sameAction && $sticky.dataset.visible === 'true' && rowMid <= barTop) {
+        // Reached the bar mid-morph (a quick scroll): settle the button on
+        // the row's action at once rather than leave the row's slot empty.
+        const want = actionKey(contextualAction(target.section.id));
+        if (ctaMorph || $primary.querySelector('.cta-action')?.dataset.key !== want) { cancelCtaMorph(); renderPrimary(); }
+        dockAtEnd(target, barTop);
+      }
+    } else if (endDock.phase === 'docked') {
+      // Back below where the bar sits: hand the button back to it.
+      if (rowMid > endDock.barTop + 24) undockFromEnd(target);
+    }
+  }
+
+  function dockAtEnd(target, barTop) {
+    const cta = $primary.querySelector('.cta-action');
+    if (!cta) return;
+    endDock = { ...endDock, phase: prefersReducedMotion ? 'docked' : 'docking', row: target.row, main: target.main, barTop };
+    log('sticky_end_docked', `${sectionLabel(target.section.id)} — the floating button joins the page's own buttons`);
+    if (prefersReducedMotion) { setRowWaiting(target.row, false); applyVisibility(); renderDemoNotes(); return; }
+
+    const from = cta.getBoundingClientRect();
+    const others = [...target.row.children].filter((el) => el !== target.main);
+    // The flying button: the bar's button cross-fading into its in-page twin.
+    const barCopy = h('div', { class: 'primary-ctas end-ghost__layer' }, copyOf(cta));
+    const pageCopy = h('div', { class: 'end-ghost__layer' }, copyOf(target.main));
+    const fly = endGhost(from, barCopy, pageCopy);
+    const surfaceFade = $sticky.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: 'ease-out', fill: 'forwards' });
+    cta.style.visibility = 'hidden';
+
+    const mainRect = target.main.getBoundingClientRect();
+    fly.animate([pageBox(from), pageBox(mainRect)], { duration: END_FLY_MS, easing: 'cubic-bezier(.3,.7,.2,1)', fill: 'forwards' });
+    barCopy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: END_FLY_MS * 0.6, easing: 'ease-in', fill: 'forwards' });
+    pageCopy.animate([{ opacity: 0 }, { opacity: 1 }], { duration: END_FLY_MS * 0.6, delay: END_FLY_MS * 0.25, easing: 'ease-out', fill: 'both' });
+    // Then it splits: each other button slides out of it to its own place.
+    const splits = others.map((el) => {
+      const g = endGhost(mainRect, h('div', { class: 'end-ghost__layer' }, copyOf(el)));
+      return g.animate([{ ...pageBox(mainRect), opacity: 0 }, { ...pageBox(el.getBoundingClientRect()), opacity: 1 }],
+        { duration: END_SPLIT_MS, delay: END_FLY_MS - 80, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' });
+    });
+    surfaceFade.finished.then(() => {
+      applyVisibility(); // the bar steps away for real (endDockHidesBar)
+      surfaceFade.cancel();
+      cta.style.visibility = '';
+    }, () => {});
+    Promise.all([...splits.map((a) => a.finished), new Promise((r) => setTimeout(r, END_FLY_MS))]).then(() => {
+      if (endDock.phase !== 'docking') return;
+      setRowWaiting(target.row, false);
+      clearEndGhosts();
+      endDock.phase = 'docked';
+      renderDemoNotes();
+      evaluateEndDock(); // the visitor may already have scrolled back up
+    }, () => {});
+  }
+
+  function undockFromEnd(target) {
+    const row = endDock.row || target.row;
+    const main = endDock.main || target.main;
+    endDock.phase = prefersReducedMotion ? 'pinned' : 'undocking';
+    log('sticky_end_undocked', 'scrolled back up — the button returns to the bar');
+    if (prefersReducedMotion) { setRowWaiting(row, true); applyVisibility(); renderDemoNotes(); return; }
+
+    const mainRect = main.getBoundingClientRect();
+    const others = [...row.children].filter((el) => el !== main).map((el) => ({ el, rect: el.getBoundingClientRect() }));
+    setRowWaiting(row, true);
+    // Bring the bar back invisibly so we know where its button sits.
+    $sticky.classList.add('is-receiving');
+    applyVisibility();
+    const cta = $primary.querySelector('.cta-action');
+    const to = cta ? cta.getBoundingClientRect() : $surface.getBoundingClientRect();
+    others.forEach(({ el, rect }) => {
+      const g = endGhost(rect, h('div', { class: 'end-ghost__layer' }, copyOf(el)));
+      g.animate([{ ...pageBox(rect), opacity: 1 }, { ...pageBox(mainRect), opacity: 0 }], { duration: 300, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'forwards' });
+    });
+    const pageCopy = h('div', { class: 'end-ghost__layer' }, copyOf(main));
+    const barCopy = h('div', { class: 'primary-ctas end-ghost__layer' }, cta ? copyOf(cta) : null);
+    const fly = endGhost(mainRect, pageCopy, barCopy);
+    barCopy.style.opacity = '0';
+    const flight = fly.animate([pageBox(mainRect), pageBox(to)], { duration: END_FLY_MS, delay: 200, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'both' });
+    pageCopy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: END_FLY_MS * 0.6, delay: 260, fill: 'forwards' });
+    barCopy.animate([{ opacity: 0 }, { opacity: 1 }], { duration: END_FLY_MS * 0.6, delay: 320, fill: 'forwards' });
+    flight.finished.then(() => {
+      if (endDock.phase !== 'undocking') return;
+      $sticky.classList.remove('is-receiving');
+      clearEndGhosts();
+      endDock.phase = 'pinned';
+      renderDemoNotes();
+      evaluateEndDock();
+    }, () => {});
+  }
+
+  // A scene change (preset, flow step, busy bar): no animation, just put
+  // everything back where it belongs.
+  function resetEndDock() {
+    if (!endDock) return;
+    clearEndGhosts();
+    $sticky?.classList.remove('is-receiving');
+    document.querySelectorAll('.hero__ctas.is-dock-waiting').forEach((r) => r.classList.remove('is-dock-waiting'));
+    const was = endDock.phase;
+    endDock = { phase: 'pinned', row: null, main: null, barTop: 0, ghosts: [] };
+    if (was !== 'pinned') applyVisibility();
+  }
+
+  // Re-checked once a prompt, panel or takeover settles (not just on
+  // scroll): e.g. a survey dismissed with the page's buttons already in
+  // view hands straight over to them instead of leaving two of the same.
+  var endDockCheck = 0;
+  function scheduleEndDockCheck() {
+    if (endDockCheck) return;
+    endDockCheck = requestAnimationFrame(() => { endDockCheck = 0; evaluateEndDock(); });
+  }
+
+  function endDockHidesBar() {
+    return !!endDock && (endDock.phase === 'docked' || endDock.phase === 'docking');
   }
 
   /* ------------------------------------------------------------------ *
@@ -2815,6 +3010,7 @@
     }
     $surface.style.transitionProperty = '';
     if (!full) evaluateCrowding();
+    scheduleEndDockCheck();
   }
 
   // Animates the surface from a previously measured size to its current one.
@@ -3569,6 +3765,7 @@
     syncLookStatus();
     syncScrollCue();
     evaluateRecentInView();
+    evaluateEndDock();
 
     // Scroll spy: find the section most in view
     let current = state.activeSection;
@@ -3584,6 +3781,11 @@
       if (best === navLock.id || performance.now() > navLock.until) navLock = null;
       else current = state.activeSection;
     }
+    // The section whose own button row will take over at the end becomes
+    // "current" as soon as that row comes into view, so the floating button
+    // already shows the row's action ("Search Inventory") before handing over.
+    const endRow = endDockRow();
+    if (endRow && !endDockBlocked() && endRow.row.getBoundingClientRect().top < window.innerHeight) current = endRow.section.id;
 
     if (current !== state.activeSection) {
       state.activeSection = current;
@@ -3619,6 +3821,7 @@
     cancelCtaMorph();
     removeRecent('primary'); // a new scene shows the bar again
     resetOffer();
+    resetEndDock();
     cancelScheduledOverlays();
     cancelSwap();
     stopNoticeTimer();
@@ -4702,6 +4905,14 @@
           mobile: 'The bar only holds the entry point; on a phone the conversation opens as a full-width chat panel just above the bar. Its × closes it.',
         },
         "A full conversation doesn't get crammed into the footer, and the entry point stays visible.", { kind: 'chat' }));
+    }
+    if (endDock && endDock.phase === 'docked' && endDock.row) {
+      out.push(note('end-dock', '.hero__ctas', 'A deliberate end',
+        {
+          desktop: "Here the floating button's action is also this section's main button, so the pinned experience ends: the button flew up into its in-page twin, split into the section's two buttons, and the bar stepped away. Scroll back up and they merge back into the bar.",
+          mobile: "Here the floating button's action is also this section's main button, so the pinned experience ends: the button flew up into its in-page twin, split into the section's two buttons, and the bar stepped away. Scroll back up and they merge back into the bar.",
+        },
+        'No duplicate buttons competing at the bottom of the page, and a clear signal that the visitor has reached the end of the story: the page\'s own call to action takes over.'));
     }
     if (offerVisible() && document.documentElement.clientWidth > 720) {
       out.push(note('offer-pop', '.offer-pop__card', 'Personalized, then out of the way',

@@ -327,7 +327,7 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   /* One declaration for both, so presentation rules don't overwrite either:
      tints cross-fade when one state takes over another, and floating/compact
      widths animate when they opportunistically expand. */
-  transition: background-color var(--dur-med) var(--ease), max-width var(--dur-med) var(--ease);
+  transition: background-color var(--dur-med) var(--ease), max-width var(--dur-med) var(--ease), opacity var(--dur-fast) var(--ease);
   background: var(--paper);
   color: var(--ink);
   border-top: 1px solid var(--line);
@@ -529,6 +529,20 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   border: 1px solid var(--line);
   box-shadow: var(--shadow-elevated);
 }
+/* -------- A deliberate end: the button docks into the page --------
+   (script.js: "A deliberate end to the pinned experience"). While the bar
+   is pinned, the section's own buttons keep their place but stay
+   invisible; the flight is drawn with page-positioned copies. */
+.hero__ctas.is-dock-waiting > * { visibility: hidden; }
+.end-ghost { position: absolute; z-index: 61; pointer-events: none; }
+.end-ghost__layer { position: absolute; inset: 0; display: flex; }
+.end-ghost__layer > * { width: 100%; height: 100%; box-sizing: border-box; margin: 0; }
+.end-ghost__layer > .btn { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
+.end-ghost .btn--ghost { opacity: 1; }
+/* Coming back: the bar is laid out (so its button can be targeted) but
+   stays invisible until the button lands, then fades in around it. */
+.sticky.is-receiving .sticky__surface { opacity: 0; }
+
 /* -------- Pill halo (optional, compact only) --------
    A frosted zone behind and around the pill that blurs the page under it
    and feathers out to nothing, so the pill lifts off the content. The halo

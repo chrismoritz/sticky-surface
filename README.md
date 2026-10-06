@@ -372,6 +372,22 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
     being busy, so a survey, quote prompt or timed notice waits for it to
     close. The privacy notice still wins, and a preset or flow change closes
     the modal.
+  - **It ends deliberately.** When the button's action is also the main
+    button of a section's own call-to-action row (Shopping's "Search
+    Inventory" beside "Schedule a Test Drive"), the pinned experience ends
+    there. As that row comes into view the floating button switches to its
+    action; as the row rises above the bar, the button flies up into its
+    in-page twin (cross-fading into the page's style), the row's other
+    button slides out of it, and the bar steps away for the rest of the
+    page. Scroll back up and the buttons merge and fly back down into the
+    bar. The row's buttons keep their place in the layout but stay
+    invisible only while the bar is showing the same action, so the page
+    never shows the same button twice and never leaves a gap. It only
+    happens when the bar holds nothing but the button: a survey, quote,
+    offer or open panel keeps the bar pinned (and arriving at the end
+    brings it back), and when one is dismissed with the row in view the
+    hand-over follows straight away. With reduced motion it's the same
+    swap without the flight.
   When the bar holds nothing but that button, the floating and compact
   shells tighten into a pill around it, so it reads as a floating button
   rather than a button in a box.
