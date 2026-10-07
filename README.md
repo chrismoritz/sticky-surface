@@ -153,11 +153,10 @@ you pick a preset by hand.
    border. Rotation pauses while the bar is hovered or focused.
 6. **Scroll Spy: Contextual CTA (V2)** — the Scroll Spy preset, starting
    from the top of the page. At first the masthead's own two buttons are
-   the only calls to action; once the masthead is three-quarters out of
-   view they merge and move down into the bar, which is just a floating
-   button that morphs into the next best action for each section as you
-   scroll. Some actions go
-   somewhere (→ Explore the Gallery in Design, Build Your Own in Gallery,
+   the only calls to action; once the masthead is 60% out of view they
+   merge and move down into the bar, which is just a floating button that
+   morphs into the next best action for each section as you scroll. Some
+   actions go somewhere (→ Explore the Gallery in Design, Build Your Own in Gallery,
    Search Inventory in Shopping). Others open more on the section's topic
    in place (+ "Discover what DriveSense sees for you" in Technology, and
    likewise in Interior and Performance): a modal rises over the dimmed
@@ -377,9 +376,9 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
     the modal.
   - **It begins deliberately.** In the first view the masthead's own two
     buttons (Shop Aurelia GT, Explore the Film) are the only calls to
-    action, and the bar waits. Once the masthead is three-quarters out of
-    view, "Explore the Film" slides into "Shop Aurelia GT", and that button
-    flies down into the bar, turning into the floating button on the way
+    action, and the bar waits. Once the masthead is 60% out of view,
+    "Explore the Film" slides into "Shop Aurelia GT", and that button flies
+    down into the bar, turning into the floating button on the way
     (the bar's dark button takes over while it's still over the dark
     masthead, so the flight stays visible over the light page). Scroll back
     up and it flies back, turns into the masthead's button, and splits back

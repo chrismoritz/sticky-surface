@@ -1723,7 +1723,7 @@
    * A deliberate beginning — the same hand-over at the top of the page
    *
    * In the first view the masthead's own two buttons are the only calls to
-   * action; the bar waits. Once the masthead is three-quarters out of view,
+   * action; the bar waits. Once the masthead is 60% out of view,
    * the two merge into one, which moves down into the bar and becomes the
    * floating button (the section's next best action from then on). Scroll
    * back up and it flies back and splits into them as the bar steps away.
@@ -1734,7 +1734,7 @@
 
   // `var` (hoisted): applyVisibility() and renderPrimary() read these during setup.
   var startDock = { phase: 'pinned', settle: true, ghosts: [], fade: null };
-  var START_AT = 0.75; // share of the masthead out of view
+  var START_AT = 0.6; // share of the masthead out of view
   var START_FLY_MS = 620;
   var START_MERGE_MS = 300;
 
@@ -4651,7 +4651,7 @@
       && ((state.visibility !== 'always' && !state.scrollVisible) || masthead);
     const show = waiting && scrollCueDismissedFor !== scrollCueKey();
     if (show && masthead) {
-      const text = "Here the masthead's own buttons come first. Once it's three-quarters out of view, they merge into the floating button.";
+      const text = "Here the masthead's own buttons come first. Once it's 60% out of view, they merge into the floating button.";
       if ($scrollCueText.textContent !== text) $scrollCueText.textContent = text;
       $scrollCueMeter.style.transform = `scaleX(${Math.min(1, heroOffShare(document.getElementById('hero')) / START_AT)})`;
     } else if (show) {
@@ -5162,7 +5162,7 @@
     }
     if (startDockWaiting()) {
       out.push(note('start-dock', '#hero .hero__ctas', 'A deliberate beginning',
-        "In the first view, the masthead's own two buttons are the only calls to action and the bar waits. Once the masthead is three-quarters out of view, the two merge into one that moves down into the bar as the floating button. Scroll back up and it splits back into them.",
+        "In the first view, the masthead's own two buttons are the only calls to action and the bar waits. Once the masthead is 60% out of view, the two merge into one that moves down into the bar as the floating button. Scroll back up and it splits back into them.",
         "The first impression belongs to the page, with no floating button competing with the masthead's, and the bar's arrival reads as the same actions following the visitor down the page."));
     }
     if (endDock && endDock.phase === 'docked' && endDock.row) {
