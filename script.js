@@ -605,7 +605,7 @@
     else delete $sticky.dataset.kind;
 
     renderDemoNotes();
-    scheduleEndDockCheck();
+    scheduleHandoverCheck();
     if (!$activeLayerReadout) return;
     const arriving = Object.entries(scheduled).map(([k, v]) =>
       `${promptName(k)} arriving in ${Math.max(0, (v.dueAt - performance.now()) / 1000).toFixed(1)}s`);
@@ -647,7 +647,7 @@
     // layer at all. "collapsed" governs whether it's showing full content
     // or just a restore pill — dismissing with a restore affordance keeps
     // the component in the layer, just collapsed, so the pill stays visible.
-    const shouldShow = state.legacyMode ? false : state.scrollVisible && !state.fullyDismissed && !endDockHidesBar();
+    const shouldShow = state.legacyMode ? false : state.scrollVisible && !state.fullyDismissed && !endDockHidesBar() && !startDockHidesBar();
     const collapsed = state.minimized || (state.dismissed && state.dismissMode === 'dismissible-restore');
 
     const wasVisible = $sticky.dataset.visible === 'true';
@@ -696,9 +696,11 @@
   }
 
   function renderPrimary() {
-    // A prompt or panel arriving while the button is docked at the end of
-    // the page brings the bar back to host it.
-    if (endDockHidesBar && endDockHidesBar() && endDockBlocked()) resetEndDock();
+    // A prompt or panel arriving while the button is docked at either end
+    // of the page (in the masthead, or the last section) brings the bar back
+    // to host it.
+    if (endDockHidesBar && endDockHidesBar() && handoverBlocked()) resetEndDock();
+    if (startDockHidesBar() && handoverBlocked()) resetStartDock();
     $primary.innerHTML = '';
     $primary.classList.toggle('is-fluid', !state.surveyActive && !state.quoteActive && !state.noticeActive && state.scrollSpy === 'off' && state.primaryType === 'search-inline');
 
@@ -1237,7 +1239,7 @@
       el.classList.remove('is-morphing');
       ctaMorph = null;
       evaluateCrowding();
-      scheduleEndDockCheck(); // a hand-over may have been waiting on this morph
+      scheduleHandoverCheck(); // a hand-over may have been waiting on this morph
     }, () => {});
     renderActiveLayer();
   }
@@ -1558,7 +1560,7 @@
 
   // Only a bar that holds nothing but the floating button can hand over to
   // the page; anything else (a prompt, chat, an open panel) keeps it pinned.
-  function endDockBlocked() {
+  function handoverBlocked() {
     return !!(state.surveyActive || state.quoteActive || state.noticeActive || state.primaryType === 'offer'
       || state.flyout || state.moreOpen || state.minimized || state.fullyDismissed || !state.scrollVisible
       || $utilities.children.length || state.chatWindowOpen);
@@ -1588,7 +1590,7 @@
     if (!endDock || !$utilities) return;
     const target = endDockRow();
     // Not this kind of scene (or a busy bar): make sure nothing is held back.
-    if (!target || (endDockBlocked() && endDock.phase === 'pinned')) {
+    if (!target || (handoverBlocked() && endDock.phase === 'pinned')) {
       if (endDock.phase === 'docked' || endDock.phase === 'docking') resetEndDock();
       document.querySelectorAll('.hero__ctas.is-dock-waiting').forEach((r) => r.classList.remove('is-dock-waiting'));
       return;
@@ -1708,13 +1710,256 @@
   // scroll): e.g. a survey dismissed with the page's buttons already in
   // view hands straight over to them instead of leaving two of the same.
   var endDockCheck = 0;
-  function scheduleEndDockCheck() {
+  function scheduleHandoverCheck() {
     if (endDockCheck) return;
-    endDockCheck = requestAnimationFrame(() => { endDockCheck = 0; evaluateEndDock(); });
+    endDockCheck = requestAnimationFrame(() => { endDockCheck = 0; evaluateEndDock(); evaluateStartDock(); });
   }
 
   function endDockHidesBar() {
     return !!endDock && (endDock.phase === 'docked' || endDock.phase === 'docking');
+  }
+
+  /* ------------------------------------------------------------------ *
+   * A deliberate beginning — the same hand-over at the top of the page
+   *
+   * In the first view the masthead's own two buttons are the only calls to
+   * action; the bar waits. Once the masthead is three-quarters out of view,
+   * the two merge into one, which moves down into the bar and becomes the
+   * floating button (the section's next best action from then on). Scroll
+   * back up and it flies back and splits into them as the bar steps away.
+   * Like the end, only a bar holding nothing but the floating button takes
+   * part, and only when the bar is set to be always visible (any other
+   * "Show when" trigger keeps its own entrance).
+   * ------------------------------------------------------------------ */
+
+  // `var` (hoisted): applyVisibility() and renderPrimary() read these during setup.
+  var startDock = { phase: 'pinned', settle: true, ghosts: [], fade: null };
+  var START_AT = 0.75; // share of the masthead out of view
+  var START_FLY_MS = 620;
+  var START_MERGE_MS = 300;
+
+  function startDockRow() {
+    if (state.scrollSpy !== 'contextual' || state.legacyMode || state.ctaStyle === 'text-link' || state.visibility !== 'always') return null;
+    const hero = document.getElementById('hero');
+    const row = hero?.querySelector('.hero__ctas');
+    const main = row?.querySelector('.btn--primary') || row?.firstElementChild;
+    return row && main ? { hero, row, main } : null;
+  }
+
+  // How much of the masthead is out of view (0 → 1).
+  function heroOffShare(hero) {
+    const r = hero.getBoundingClientRect();
+    if (!r.height) return 1;
+    const seen = Math.max(0, Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0));
+    return 1 - seen / r.height;
+  }
+
+  function setStartWaiting(waiting) {
+    document.querySelector('#hero .hero__ctas')?.classList.toggle('is-start-waiting', waiting);
+  }
+
+  function clearStartGhosts() {
+    startDock.ghosts.forEach((g) => g.remove());
+    startDock.ghosts = [];
+  }
+
+  // Ghosts here are fixed to the viewport, since one end of each flight is
+  // the (fixed) bar; glide() re-reads both ends every frame, so the masthead
+  // end stays on its mark while the page scrolls.
+  function placeGhost(g, r) {
+    Object.assign(g.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+  }
+  function startGhost(rect, ...children) {
+    const g = h('div', { class: 'end-ghost end-ghost--fixed', 'aria-hidden': 'true' }, ...children);
+    placeGhost(g, rect);
+    document.body.append(g);
+    startDock.ghosts.push(g);
+    return g;
+  }
+  const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+  const easeOut = (t) => 1 - (1 - t) ** 3;
+  function glide(g, from, to, { ms, delay = 0, ease = easeInOut, fade = null }) {
+    return new Promise((resolve) => {
+      const t0 = performance.now() + delay;
+      const frame = (now) => {
+        if (!g.isConnected) return resolve(false);
+        const t = Math.min(1, Math.max(0, (now - t0) / ms));
+        const e = ease(t);
+        const a = from();
+        const b = to();
+        const mix = (k) => a[k] + (b[k] - a[k]) * e;
+        placeGhost(g, { left: mix('left'), top: mix('top'), width: mix('width'), height: mix('height') });
+        if (fade) g.style.opacity = String(fade[0] + (fade[1] - fade[0]) * e);
+        if (t < 1) requestAnimationFrame(frame);
+        else resolve(true);
+      };
+      frame(performance.now());
+    });
+  }
+  // The masthead's buttons are white-on-dark only inside the masthead, so
+  // their copies carry their computed look with them.
+  const LOOK_PROPS = ['backgroundColor', 'color', 'borderStyle', 'borderWidth', 'borderColor', 'borderRadius',
+    'fontFamily', 'fontSize', 'fontWeight', 'letterSpacing', 'boxShadow', 'opacity'];
+  function styledCopy(el) {
+    const c = copyOf(el);
+    const cs = getComputedStyle(el);
+    LOOK_PROPS.forEach((k) => { c.style[k] = cs[k]; });
+    return c;
+  }
+
+  function evaluateStartDock() {
+    if (!startDock || !$utilities) return;
+    const target = startDockRow();
+    if (!target || handoverBlocked()) {
+      if (startDock.phase !== 'pinned') resetStartDock();
+      else setStartWaiting(false);
+      startDock.settle = false;
+      return;
+    }
+    if (startDock.phase === 'merging' || startDock.phase === 'splitting') return;
+    const off = heroOffShare(target.hero);
+    // A fresh scene (or the first look at the page) opens in the right
+    // place, without a flight.
+    if (startDock.settle || $sticky.dataset.visible !== 'true' && startDock.phase === 'pinned') {
+      startDock.settle = false;
+      if (off < START_AT) toPage();
+      else setStartWaiting(true);
+      return;
+    }
+    if (startDock.phase === 'pinned') {
+      setStartWaiting(true);
+      if (off < START_AT - 0.04) splitToHero(target);
+    } else if (startDock.phase === 'page') {
+      setStartWaiting(false);
+      if (off >= START_AT) mergeIntoBar(target);
+    }
+  }
+
+  function toPage() {
+    startDock.phase = 'page';
+    setStartWaiting(false);
+    applyVisibility();
+    renderDemoNotes();
+    syncScrollCue();
+  }
+
+  function toPinned() {
+    startDock.phase = 'pinned';
+    setStartWaiting(true);
+    $sticky.classList.remove('is-receiving');
+    applyVisibility();
+    renderDemoNotes();
+    syncScrollCue();
+  }
+
+  function mergeIntoBar(target) {
+    startDock.phase = 'merging';
+    syncScrollCue(); // the hint has done its job
+    log('sticky_start_merged', "the masthead's buttons merge into the floating button");
+    // The bar's button settles on this section's action before anything
+    // flies to it (it may have been mid-morph while the bar was away).
+    const want = actionKey(contextualAction(state.activeSection));
+    if (ctaMorph || $primary.querySelector('.cta-action')?.dataset.key !== want) { cancelCtaMorph(); renderPrimary(); }
+    if (prefersReducedMotion) { toPinned(); return; }
+
+    const mainRect = () => target.main.getBoundingClientRect();
+    const others = [...target.row.children].filter((el) => el !== target.main);
+    const othersCopies = others.map((el) => ({ el, copy: styledCopy(el) }));
+    const pageCopy = h('div', { class: 'end-ghost__layer' }, styledCopy(target.main));
+    setStartWaiting(true);
+    // The bar is laid out (so its button can be targeted) but stays
+    // invisible until the button lands, then fades in around it.
+    $sticky.classList.add('is-receiving');
+    applyVisibility();
+    const cta = $primary.querySelector('.cta-action');
+    const barRect = () => (cta?.isConnected ? cta : $surface).getBoundingClientRect();
+
+    // First the masthead's buttons merge into its main one…
+    othersCopies.forEach(({ el, copy }) => {
+      const g = startGhost(el.getBoundingClientRect(), h('div', { class: 'end-ghost__layer' }, copy));
+      glide(g, () => el.getBoundingClientRect(), mainRect, { ms: START_MERGE_MS, fade: [1, 0] });
+    });
+    // …which then flies down into the bar, becoming the floating button.
+    const barCopy = h('div', { class: 'primary-ctas end-ghost__layer' }, cta ? copyOf(cta) : null);
+    barCopy.style.opacity = '0';
+    const fly = startGhost(mainRect(), pageCopy, barCopy);
+    const lift = START_MERGE_MS - 60;
+    // The bar's (dark) button takes over while still over the dark masthead,
+    // so the flight stays visible over the light page below; the masthead's
+    // copy fades out underneath it, never showing two labels at once.
+    barCopy.animate([{ opacity: 0 }, { opacity: 1 }], { duration: START_FLY_MS * 0.28, delay: lift + START_FLY_MS * 0.04, fill: 'forwards' });
+    pageCopy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: START_FLY_MS * 0.15, delay: lift + START_FLY_MS * 0.3, fill: 'forwards' });
+    glide(fly, mainRect, barRect, { ms: START_FLY_MS, delay: lift }).then(() => {
+      if (startDock.phase !== 'merging') return;
+      clearStartGhosts();
+      toPinned();
+      evaluateStartDock(); // the visitor may already have scrolled back up
+    });
+  }
+
+  function splitToHero(target) {
+    startDock.phase = 'splitting';
+    log('sticky_start_split', 'back at the masthead — the floating button splits into its buttons');
+    if (prefersReducedMotion) { toPage(); return; }
+
+    const cta = $primary.querySelector('.cta-action');
+    const from = (cta || $surface).getBoundingClientRect(); // the bar is fixed: its spot holds still
+    const mainRect = () => target.main.getBoundingClientRect();
+    const others = [...target.row.children].filter((el) => el !== target.main);
+    // Copies are taken while the masthead's buttons can still be measured.
+    const copies = others.map((el) => ({ el, copy: styledCopy(el) }));
+    const barCopy = h('div', { class: 'primary-ctas end-ghost__layer' }, cta ? copyOf(cta) : null);
+    const pageCopy = h('div', { class: 'end-ghost__layer' }, styledCopy(target.main));
+    pageCopy.style.opacity = '0';
+    const fly = startGhost(from, barCopy, pageCopy);
+    if (cta) cta.style.visibility = 'hidden';
+    const fade = $sticky.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: 'ease-out', fill: 'forwards' });
+    startDock.fade = fade;
+    fade.finished.then(() => {
+      applyVisibility(); // the bar steps away for real (startDockHidesBar)
+      fade.cancel();
+      if (cta) cta.style.visibility = '';
+    }, () => {});
+    // The reverse: the masthead's copy (on top) arrives near the masthead.
+    pageCopy.animate([{ opacity: 0 }, { opacity: 1 }], { duration: START_FLY_MS * 0.28, delay: START_FLY_MS * 0.55, fill: 'forwards' });
+    barCopy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: START_FLY_MS * 0.15, delay: START_FLY_MS * 0.82, fill: 'forwards' });
+    glide(fly, () => from, mainRect, { ms: START_FLY_MS }).then((landed) => {
+      if (!landed || startDock.phase !== 'splitting') return false;
+      // Then it splits: each other button slides out of it to its own place.
+      return Promise.all(copies.map(({ el, copy }) => {
+        const g = startGhost(mainRect(), h('div', { class: 'end-ghost__layer' }, copy));
+        g.style.opacity = '0';
+        return glide(g, mainRect, () => el.getBoundingClientRect(), { ms: START_MERGE_MS + 80, ease: easeOut, fade: [0, 1] });
+      })).then(() => true);
+    }).then((done) => {
+      if (!done || startDock.phase !== 'splitting') return;
+      clearStartGhosts();
+      toPage();
+      evaluateStartDock(); // the visitor may already have scrolled back down
+    });
+  }
+
+  // A scene change or a busy bar: no animation, just put everything back.
+  // `settle` lets the next check place a fresh scene without a flight.
+  function resetStartDock({ settle = false } = {}) {
+    if (!startDock) return;
+    clearStartGhosts();
+    startDock.fade?.cancel();
+    $sticky?.classList.remove('is-receiving');
+    $primary?.querySelector('.cta-action')?.style.removeProperty('visibility');
+    setStartWaiting(false);
+    const was = startDock.phase;
+    startDock = { phase: 'pinned', settle, ghosts: [], fade: null };
+    if (was !== 'pinned') { applyVisibility(); renderDemoNotes(); syncScrollCue(); }
+  }
+
+  function startDockHidesBar() {
+    return !!startDock && (startDock.phase === 'page' || startDock.phase === 'splitting');
+  }
+
+  // Still in the masthead, with the bar waiting to take over.
+  function startDockWaiting() {
+    return !!startDock && startDock.phase === 'page';
   }
 
   /* ------------------------------------------------------------------ *
@@ -3010,7 +3255,7 @@
     }
     $surface.style.transitionProperty = '';
     if (!full) evaluateCrowding();
-    scheduleEndDockCheck();
+    scheduleHandoverCheck();
   }
 
   // Animates the surface from a previously measured size to its current one.
@@ -3785,7 +4030,7 @@
     // "current" as soon as that row comes into view, so the floating button
     // already shows the row's action ("Search Inventory") before handing over.
     const endRow = endDockRow();
-    if (endRow && !endDockBlocked() && endRow.row.getBoundingClientRect().top < window.innerHeight) current = endRow.section.id;
+    if (endRow && !handoverBlocked() && endRow.row.getBoundingClientRect().top < window.innerHeight) current = endRow.section.id;
 
     if (current !== state.activeSection) {
       state.activeSection = current;
@@ -3801,6 +4046,8 @@
       }
     }
 
+    // After the section update, so a merge lands on this section's action.
+    evaluateStartDock();
     evaluateCrowding();
   }
 
@@ -3822,6 +4069,7 @@
     removeRecent('primary'); // a new scene shows the bar again
     resetOffer();
     resetEndDock();
+    resetStartDock({ settle: true }); // a fresh scene opens in place, without the flight
     cancelScheduledOverlays();
     cancelSwap();
     stopNoticeTimer();
@@ -4391,16 +4639,22 @@
   const $scrollCueText = document.getElementById('scrollCueText');
   const $scrollCueMeter = document.getElementById('scrollCueMeter');
   let scrollCueDismissedFor = null;
-  const scrollCueKey = () => `${state.visibility}|${state.sectionReachTarget}`;
+  const scrollCueKey = () => `${state.visibility}|${state.sectionReachTarget}|${startDockWaiting() ? 'masthead' : ''}`;
 
   function syncScrollCue() {
     if (!lookReady) return;
     // On phones the open panel covers the page, so the hint waits for it to close.
     const panelCovers = !$panel.hidden && document.documentElement.clientWidth <= 720;
+    // Contextual CTA's masthead hand-over: the bar is waiting on the masthead.
+    const masthead = startDockWaiting();
     const waiting = !embedded && !state.legacyMode && !state.fullyDismissed && !panelCovers
-      && state.visibility !== 'always' && !state.scrollVisible;
+      && ((state.visibility !== 'always' && !state.scrollVisible) || masthead);
     const show = waiting && scrollCueDismissedFor !== scrollCueKey();
-    if (show) {
+    if (show && masthead) {
+      const text = "Here the masthead's own buttons come first. Once it's three-quarters out of view, they merge into the floating button.";
+      if ($scrollCueText.textContent !== text) $scrollCueText.textContent = text;
+      $scrollCueMeter.style.transform = `scaleX(${Math.min(1, heroOffShare(document.getElementById('hero')) / START_AT)})`;
+    } else if (show) {
       const fix = $look.hidden
         ? 'To show it right away, open Prototype Controls → Visibility & Entrance and set "Show when" to Always visible.'
         : 'To show it right away, choose Always under Appears in the "Try a look" switcher.';
@@ -4906,8 +5160,13 @@
         },
         "A full conversation doesn't get crammed into the footer, and the entry point stays visible.", { kind: 'chat' }));
     }
+    if (startDockWaiting()) {
+      out.push(note('start-dock', '#hero .hero__ctas', 'A deliberate beginning',
+        "In the first view, the masthead's own two buttons are the only calls to action and the bar waits. Once the masthead is three-quarters out of view, the two merge into one that moves down into the bar as the floating button. Scroll back up and it splits back into them.",
+        "The first impression belongs to the page, with no floating button competing with the masthead's, and the bar's arrival reads as the same actions following the visitor down the page."));
+    }
     if (endDock && endDock.phase === 'docked' && endDock.row) {
-      out.push(note('end-dock', '.hero__ctas', 'A deliberate end',
+      out.push(note('end-dock', `#${endDock.row.closest('section[id]').id} .hero__ctas`, 'A deliberate end',
         {
           desktop: "Here the floating button's action is also this section's main button, so the pinned experience ends: the button flew up into its in-page twin, split into the section's two buttons, and the bar stepped away. Scroll back up and they merge back into the bar.",
           mobile: "Here the floating button's action is also this section's main button, so the pinned experience ends: the button flew up into its in-page twin, split into the section's two buttons, and the bar stepped away. Scroll back up and they merge back into the bar.",

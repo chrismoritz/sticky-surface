@@ -529,12 +529,17 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   border: 1px solid var(--line);
   box-shadow: var(--shadow-elevated);
 }
-/* -------- A deliberate end: the button docks into the page --------
-   (script.js: "A deliberate end to the pinned experience"). While the bar
-   is pinned, the section's own buttons keep their place but stay
-   invisible; the flight is drawn with page-positioned copies. */
-.hero__ctas.is-dock-waiting > * { visibility: hidden; }
+/* -------- A deliberate end (and beginning): the button docks into the page --------
+   (script.js: "A deliberate end to the pinned experience" and "A deliberate
+   beginning"). While the bar is pinned, the section's (or masthead's) own
+   buttons keep their place but stay invisible; the flights are drawn with
+   copies. */
+.hero__ctas.is-dock-waiting > *,
+.hero__ctas.is-start-waiting > * { visibility: hidden; }
 .end-ghost { position: absolute; z-index: 61; pointer-events: none; }
+/* The masthead hand-over flies to and from the (fixed) bar, passing under
+   the site header like the buttons it copies. */
+.end-ghost--fixed { position: fixed; z-index: 39; }
 .end-ghost__layer { position: absolute; inset: 0; display: flex; }
 .end-ghost__layer > * { width: 100%; height: 100%; box-sizing: border-box; margin: 0; }
 .end-ghost__layer > .btn { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
@@ -575,6 +580,8 @@ h2 { font-size: clamp(1.9rem, 4vw, 2.75rem); }
   animation: haloIn var(--dur-med) var(--ease) both;
 }
 @keyframes haloIn { from { opacity: 0; } to { opacity: 1; } }
+/* Waits with the surface while a button flies into the bar (then fades in with it). */
+.sticky[data-presentation="compact"][data-halo="on"].is-receiving > .sticky__halo { animation: none; opacity: 0; }
 @media (max-width: 720px) {
   .sticky[data-presentation="compact"][data-halo="on"] > .sticky__halo { --halo-x: 24px; --halo-top: 24px; }
 }

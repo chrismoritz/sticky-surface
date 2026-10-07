@@ -152,8 +152,11 @@ you pick a preset by hand.
    the panel's edge glides to its new length and a highlight traces its
    border. Rotation pauses while the bar is hovered or focused.
 6. **Scroll Spy: Contextual CTA (V2)** — the Scroll Spy preset, starting
-   from the top of the page. The bar is just a floating button that morphs
-   into the next best action for each section as you scroll. Some actions go
+   from the top of the page. At first the masthead's own two buttons are
+   the only calls to action; once the masthead is three-quarters out of
+   view they merge and move down into the bar, which is just a floating
+   button that morphs into the next best action for each section as you
+   scroll. Some actions go
    somewhere (→ Explore the Gallery in Design, Build Your Own in Gallery,
    Search Inventory in Shopping). Others open more on the section's topic
    in place (+ "Discover what DriveSense sees for you" in Technology, and
@@ -372,6 +375,25 @@ why each one was made. The [Feature notes](#feature-notes) have the detail.
     being busy, so a survey, quote prompt or timed notice waits for it to
     close. The privacy notice still wins, and a preset or flow change closes
     the modal.
+  - **It begins deliberately.** In the first view the masthead's own two
+    buttons (Shop Aurelia GT, Explore the Film) are the only calls to
+    action, and the bar waits. Once the masthead is three-quarters out of
+    view, "Explore the Film" slides into "Shop Aurelia GT", and that button
+    flies down into the bar, turning into the floating button on the way
+    (the bar's dark button takes over while it's still over the dark
+    masthead, so the flight stays visible over the light page). Scroll back
+    up and it flies back, turns into the masthead's button, and splits back
+    into the two as the bar steps away. While the bar is pinned the
+    masthead's buttons keep their place but stay invisible, so there's
+    never a duplicate. The flight is redrawn every frame from where both
+    ends actually are, so it stays on its mark while the page scrolls under
+    it, and it passes under the site header like the buttons it copies.
+    Opening the scene at the top starts in the masthead, without a flight;
+    a scroll hint explains the wait. The same rules as the end apply: only a
+    bar holding nothing but the button takes part (a survey arriving in the
+    masthead brings the bar up to host it, and dismissing it hands back),
+    reduced motion swaps without the flight, and it's tied to the bar being
+    always visible: any other "Show when" trigger keeps its own entrance.
   - **It ends deliberately.** When the button's action is also the main
     button of a section's own call-to-action row (Shopping's "Search
     Inventory" beside "Schedule a Test Drive"), the pinned experience ends
@@ -511,6 +533,7 @@ for a pilot:
 | Does personalization pay off, and at what cost? | Offer shown (`offer_shown`), how it reached the bar (`offer_docked`: timed, closed, not now, escape), reopened from the bar (`offer_reopened`), claimed (`offer_claimed`), used on a quote, and bounce vs. pages without the pop-up |
 | Do people come back for what they closed? | Entries saved (`closed_message_saved`, with how it closed) vs. reopened from the end of the page (`closed_message_reopened`), by message type |
 | Do example questions get people chatting? | Conversations started from an example (`chat_hint_used`, with the section) vs. typed questions, and chat starts per section with and without examples |
+| Do the hand-overs at either end help or distract? | Merges and splits at the masthead (`sticky_start_merged`, `sticky_start_split`) and at the end of the page (`sticky_end_docked`, `sticky_end_undocked`), clicks on the masthead's and last section's own buttons vs. the floating button, and whether visitors scroll back up to the masthead after it merges |
 | Does "show more" earn its place? | Opens per section (`show_more_opened`), time spent and how it was closed (`show_more_closed`: escape, button, outside click, or the test-drive link inside), and whether visitors who open one go on to a CTA |
 | Does section navigation help people find things? | Jumps from the bar (`section_changed — nav click`), scroll depth, and whether survey ratings for "easy to find" go up |
 | Does targeting pay off? | Quote completion for returning, high-intent visitors vs. a prompt shown to everyone |
