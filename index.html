@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230c0c0d'/%3E%3Crect x='18' y='60' width='64' height='14' rx='7' fill='%23fff'/%3E%3C/svg%3E">
 <!-- ?v= busts browser and GitHub Pages caches (both keep files ~10 min):
      bump it whenever styles.css or script.js changes. -->
-<link rel="stylesheet" href="styles.css?v=2026-10-07.2">
+<link rel="stylesheet" href="styles.css?v=2026-10-07.3">
 <!-- Flags JavaScript before first paint, so the no-JS fallbacks below
      (.section-action) never flash for visitors who get the sticky surface. -->
 <script>document.documentElement.classList.add('js');</script>
@@ -322,8 +322,8 @@
      driven by script.js. Nothing here is duplicated per-example.
      ============================================================ -->
 <div id="sticky" class="sticky" data-presentation="full-width" data-surface="opaque" data-visible="false">
-  <!-- Optional "halo" behind a compact pill: a feathered, frosted zone that
-       blurs the page around it so the pill lifts off the content. -->
+  <!-- Optional "halo" behind the floating panel or compact pill: a feathered,
+       frosted zone that blurs the page around it so it lifts off the content. -->
   <div class="sticky__halo" aria-hidden="true"></div>
   <div class="sticky__surface">
     <!-- Countdown for a timed notice: shrinks to nothing, then the notice closes. -->
@@ -437,11 +437,11 @@
         <label><input type="radio" name="surface" value="translucent"> Translucent / blur</label>
         <label><input type="radio" name="surface" value="bordered"> Subtle border</label>
       </div>
-      <p class="panel__label">Pill halo</p>
+      <p class="panel__label">Halo</p>
       <label class="panel__row">
-        <input type="checkbox" id="haloToggle"> Blur the page around the pill
+        <input type="checkbox" id="haloToggle"> Blur the page around the panel or pill
       </label>
-      <p class="panel__hint" id="haloHint">Compact / pill only: a soft frosted zone behind and around it that fades out at its edges, so the pill lifts off the content.</p>
+      <p class="panel__hint" id="haloHint">Floating panel and compact pill: a soft frosted zone behind and around it that fades out at its edges, so it lifts off the content.</p>
       <p class="panel__label">Primary CTA style</p>
       <div class="panel__row">
         <label><input type="radio" name="ctastyle" value="button" checked> Button</label>
@@ -688,7 +688,7 @@
         <label><input type="radio" name="look-surface" value="translucent"><span>Glass</span></label>
         <label><input type="radio" name="look-surface" value="bordered"><span>Border</span></label>
       </div>
-      <label class="look-halo" title="Blur the page around the pill (Compact only)"><input type="checkbox" name="look-halo" value="on"><span>Halo</span></label>
+      <label class="look-halo" title="Blur the page around the panel or pill (Floating and Compact)"><input type="checkbox" name="look-halo" value="on"><span>Halo</span></label>
     </fieldset>
     <fieldset class="look-row">
       <legend>Entrance</legend>
@@ -825,6 +825,6 @@
   </div>
 </div>
 
-<script src="script.js?v=2026-10-07.2"></script>
+<script src="script.js?v=2026-10-07.3"></script>
 </body>
 </html>

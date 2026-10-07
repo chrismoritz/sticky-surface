@@ -404,7 +404,7 @@
     legacyMode: true,
     presentation: 'full-width',
     surface: 'opaque',
-    halo: 'off', // 'on': frosted halo behind the compact pill
+    halo: 'off', // 'on': frosted halo behind the floating panel or compact pill
     visibility: 'always',
     sectionReachTarget: 'design',
     entrance: 'fade',
@@ -4184,7 +4184,7 @@
   const $haloToggle = document.getElementById('haloToggle');
   $haloToggle.addEventListener('change', () => {
     state.halo = $haloToggle.checked ? 'on' : 'off';
-    log('sticky_variant_changed', `pill halo ${state.halo}${state.presentation === 'compact' ? '' : ' (applies to Compact / pill)'}`);
+    log('sticky_variant_changed', `halo ${state.halo}${haloApplies() ? '' : ' (applies to Floating and Compact)'}`);
     applyVisibility();
   });
 
@@ -4490,9 +4490,12 @@
     setPanelControl('visibility', value);
   }
 
+  // Full width spans the viewport: there's nothing around it to blur.
+  function haloApplies() { return state.presentation === 'floating' || state.presentation === 'compact'; }
+
   function currentLookIndex() {
     return LOOKS.findIndex((l) => l.presentation === state.presentation && l.surface === state.surface && l.entrance === state.entrance
-      && (state.presentation !== 'compact' || l.halo === state.halo));
+      && (!haloApplies() || l.halo === state.halo));
   }
 
   function cancelLookReplay() {
@@ -4536,12 +4539,12 @@
       if (r) r.checked = true;
     });
     document.getElementById('lookSectionLabel').textContent = sectionLabel(state.sectionReachTarget);
-    // The halo only exists on the pill.
+    // The halo exists on the floating panel and the pill, not full width.
     const halo = $look.querySelector('input[name="look-halo"]');
     halo.checked = state.halo === 'on';
-    halo.disabled = state.presentation !== 'compact';
+    halo.disabled = !haloApplies();
     const i = currentLookIndex();
-    const words = `${LOOK_WORDS[state.presentation]}${state.presentation === 'compact' && state.halo === 'on' ? ' with halo' : ''}, ${LOOK_WORDS[state.surface]}, ${LOOK_WORDS[state.entrance]}`;
+    const words = `${LOOK_WORDS[state.presentation]}${haloApplies() && state.halo === 'on' ? ' with halo' : ''}, ${LOOK_WORDS[state.surface]}, ${LOOK_WORDS[state.entrance]}`;
     $lookCounter.textContent = i >= 0 ? `Look ${i + 1} of ${LOOKS.length}: ${words}` : `Custom: ${words}`;
     syncLookStatus();
   }
