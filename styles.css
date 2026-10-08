@@ -921,6 +921,17 @@ img.logo-bug { object-fit: cover; }
 .sticky[data-form] .sticky__primary { flex: 1 1 auto; }
 /* Same side inset as the form below, so the header lines up with it. */
 .sticky[data-form] .sticky__bar { padding-left: 24px; padding-right: 24px; }
+/* An open form keeps the panel at its normal width, the same on every step:
+   the form column (560px) plus the panel's side padding, within the shape's
+   usual cap. Left to shrink-wrap, the panel would follow each step's
+   content, jumping between steps, and a long paragraph (the consent text,
+   a row of chips) would push it out to its expanded width. */
+.sticky[data-form][data-presentation="floating"] .sticky__surface { width: min(610px, calc(100vw - 40px)); max-width: none; }
+.sticky[data-form][data-presentation="compact"] .sticky__surface { width: min(560px, calc(100vw - 32px)); max-width: none; }
+@media (max-width: 720px) {
+  .sticky[data-form][data-presentation="floating"] .sticky__surface,
+  .sticky[data-form][data-presentation="compact"] .sticky__surface { width: calc(100vw - 24px); }
+}
 .sticky[data-form="quote"] .form-head--quote,
 .sticky[data-form="survey"] .form-head--survey {
   display: flex; align-items: center; gap: 10px;

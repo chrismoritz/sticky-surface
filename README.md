@@ -956,6 +956,11 @@ form away. Closing (or Escape) keeps every answer, brings the banner and
 the other functions back, and returns focus to the prompt's button, which
 then reads *Continue My Quote* / *Continue Survey*. Dismissing the prompt
 altogether is still the banner's ×.
+While a form is open the panel also holds one steady width on every step:
+the form column plus its padding, within the floating panel's or pill's
+normal size (or the screen width less its margins on phones). Otherwise the
+panel would follow each step's content, jumping between steps, and a long
+paragraph like the consent text would stretch it to its expanded width.
 
 ### Personalization: a pop-up that moves into the bar
 
