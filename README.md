@@ -946,6 +946,17 @@ Grand Touring" — and the event log records the vehicle, dealer, and which
 optional details were filled in. Dealers, prices, and distances are mock
 data; there's no backend.
 
+**The form gets the surface to itself.** While the quote form (or the
+survey) is open, the bar's top row stops repeating the prompt: the dark
+banner, chat, search and the bar's minimize/dismiss controls step aside,
+and the row becomes a slim header naming the form ("Request a Quote" with
+its price-tag badge, or "Quick survey · 4 short steps · about a minute")
+lined up with the form column, with a **Close ⌄** button that folds the
+form away. Closing (or Escape) keeps every answer, brings the banner and
+the other functions back, and returns focus to the prompt's button, which
+then reads *Continue My Quote* / *Continue Survey*. Dismissing the prompt
+altogether is still the banner's ×.
+
 ### Personalization: a pop-up that moves into the bar
 
 The Personalized Offer scenario (Demo Flow step 10, or the preset of the

@@ -907,6 +907,48 @@ img.logo-bug { object-fit: cover; }
 @media (prefers-reduced-motion: reduce) {
   .primary-prompt--quote .quote-cta::after, .sticky__primary.is-swapping-in .primary-prompt--quote, .sticky__primary.is-swapping-in .quote-badge { animation: none; }
 }
+/* -------- An open form's header --------
+   While the quote form or survey is open, the bar's top row is only a
+   header for it (script.js: formHead): the form's name and a Close that
+   folds it away, answers kept. The prompt's banner, chat, search and the
+   bar's controls step aside until then, so the form has the surface to
+   itself. The header lines up with the form column below it. */
+.form-head { display: none; }
+.sticky[data-form="quote"] .primary-prompt--quote,
+.sticky[data-form="survey"] .primary-prompt--survey,
+.sticky[data-form] .sticky__utilities,
+.sticky[data-form] .sticky__controls { display: none; }
+.sticky[data-form] .sticky__primary { flex: 1 1 auto; }
+/* Same side inset as the form below, so the header lines up with it. */
+.sticky[data-form] .sticky__bar { padding-left: 24px; padding-right: 24px; }
+.sticky[data-form="quote"] .form-head--quote,
+.sticky[data-form="survey"] .form-head--survey {
+  display: flex; align-items: center; gap: 10px;
+  width: min(560px, 100%); margin: 0 auto; min-width: 0;
+}
+.form-head__badge { width: 30px; height: 30px; background: var(--quote); color: #fff; }
+.form-head__badge svg { width: 15px; height: 15px; }
+.form-head__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--survey); margin: 0 2px 0 4px; }
+.form-head__title {
+  flex: 1 1 auto; min-width: 0; margin: 0;
+  font-size: .95rem; font-weight: 600; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.form-head__sub { font-weight: 400; color: var(--grey-600); font-size: .85rem; }
+.form-head__close {
+  flex: none; display: inline-flex; align-items: center; gap: 4px;
+  min-height: 36px; padding: 6px 10px 6px 14px; border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong); background: #fff; color: var(--ink);
+  font: inherit; font-size: .84rem; font-weight: 600; cursor: pointer;
+}
+.form-head__close:hover { background: var(--quote-tint); }
+.form-head--survey .form-head__close:hover { background: var(--survey-tint); }
+.form-head__close:focus-visible { outline: 2px solid var(--quote); outline-offset: 2px; }
+.form-head--survey .form-head__close:focus-visible { outline-color: var(--survey); }
+.form-head__icon { display: grid; }
+@media (max-width: 480px) {
+  .form-head__sub { display: none; }
+}
 @media (max-width: 480px) {
   /* Phone: badge, message and × on the first row; the CTA full width below. */
   .primary-prompt--quote { flex: 1 1 100%; flex-wrap: wrap; row-gap: 10px; }

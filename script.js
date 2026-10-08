@@ -596,6 +596,7 @@
 
   function renderActiveLayer() {
     const kind = computeActiveLayerKind();
+    syncFormHead();
 
     // Drives the surface's own background tint — every colorable state
     // (chat/search/survey/quote) gets one, not just Survey/Quote's
@@ -753,6 +754,7 @@
     wrap.appendChild(close);
 
     $primary.appendChild(wrap);
+    $primary.appendChild(formHead('survey'));
   }
 
   function renderNoticePrimary() {
@@ -834,6 +836,45 @@
         h('p', { class: 'quote-copy__sub', text: quoteSubline() })),
       getQuote,
       h('button', { type: 'button', class: 'sticky__icon-btn', 'aria-label': 'Dismiss quote prompt', innerHTML: closeIcon(), onclick: () => dismissQuote() })));
+    $primary.appendChild(formHead('quote'));
+  }
+
+  // While the quote form or survey is open, the bar's top row is just a
+  // header for it: what it is, and a way to close it (answers are kept).
+  // The prompt's banner, chat, search and the bar's own controls step aside
+  // until it closes (CSS, keyed on data-form, so nothing re-renders).
+  const ICON_CHEVRON_DOWN = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function formHead(kind) {
+    const quote = kind === 'quote';
+    return h('div', { class: `form-head form-head--${kind}` },
+      quote
+        ? h('span', { class: 'quote-badge form-head__badge', 'aria-hidden': 'true', innerHTML: ICON_TAG })
+        : h('span', { class: 'form-head__dot', 'aria-hidden': 'true' }),
+      h('p', { class: 'form-head__title' },
+        quote ? 'Request a Quote' : 'Quick survey',
+        quote ? null : h('span', { class: 'form-head__sub', text: ` · ${SURVEY_STEPS.length} short steps · about a minute` })),
+      h('button', {
+        type: 'button', class: 'form-head__close', 'aria-controls': 'stickyFlyout', 'aria-expanded': 'true',
+        'aria-label': quote ? 'Close the quote form (your answers are kept)' : 'Close the survey (your answers are kept)',
+        onclick: () => closeFormPanel(kind, 'close button'),
+      },
+      h('span', { text: 'Close' }),
+      h('span', { class: 'form-head__icon', 'aria-hidden': 'true', innerHTML: ICON_CHEVRON_DOWN })));
+  }
+
+  function closeFormPanel(kind, how) {
+    const first = $surface.getBoundingClientRect();
+    closeFlyout();
+    animateSurfaceResize(first);
+    log('flyout_closed', `${kind} — ${how}, answers kept`);
+    $primary.querySelector(kind === 'quote' ? '.primary-prompt--quote .quote-cta' : '.primary-prompt--survey .btn--primary')
+      ?.focus({ preventScroll: true });
+  }
+
+  function syncFormHead() {
+    const kind = state.flyout === 'quote' || state.flyout === 'survey' ? state.flyout : null;
+    if (kind && $primary.querySelector(`.form-head--${kind}`)) $sticky.dataset.form = kind;
+    else delete $sticky.dataset.form;
   }
 
   function renderNavPrimary() {
@@ -2702,7 +2743,6 @@
         h('button', { type: 'submit', class: 'btn btn--primary btn--small', text: isLast ? 'Send feedback' : 'Next' }))));
 
     $flyout.append(h('div', { class: 'survey-flow' },
-      h('p', { class: 'flyout-title', text: `Quick survey · ${SURVEY_STEPS.length} short steps · about a minute` }),
       h('ol', { class: 'quote-progress survey-progress', 'aria-label': 'Progress' },
         SURVEY_STEPS.map((name, i) => h('li', { class: i < d.step ? 'is-done' : i === d.step ? 'is-current' : '', 'aria-current': i === d.step ? 'step' : null, text: name }))),
       h('h3', { class: 'quote-step-title', id: 'surveyQuestion', tabIndex: -1,
@@ -2786,7 +2826,6 @@
       h('button', { type: 'submit', class: 'btn btn--primary btn--small', text: isLast ? 'Send request' : 'Continue' })));
 
     $flyout.append(h('div', { class: 'quote-flow' },
-      h('p', { class: 'flyout-title', text: 'Request a Quote' }),
       h('ol', { class: 'quote-progress', 'aria-label': 'Progress' },
         QUOTE_STEPS.map((name, i) => h('li', {
           class: i < d.step ? 'is-done' : i === d.step ? 'is-current' : '',
@@ -4849,6 +4888,7 @@
     else if (offerVisible()) dockOffer('escape');
     else if (!$chaosOverlay.hidden) { $chaosOverlay.hidden = true; log('chaos_closed'); }
     else if (state.chatWindowOpen && $chatWindow.contains(document.activeElement)) closeChatWindow();
+    else if (state.flyout === 'quote' || state.flyout === 'survey') closeFormPanel(state.flyout, 'escape');
     else if (state.flyout) { closeFlyout(); log('flyout_closed', 'escape'); }
     else if (state.chatWindowOpen) closeChatWindow();
     else if (demoNotesReady && visibleNoteIds().length) dismissNotes(visibleNoteIds(), 'escape');
@@ -5191,8 +5231,8 @@
     if (state.flyout === 'quote' && !state.quoteSubmitted) {
       out.push(note('quote-form', '.quote-flow', 'The full form, in four short steps',
         {
-          desktop: 'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review. Optional fields are tucked behind one toggle, and progress is kept if the panel closes.',
-          mobile: 'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review — one short step per screen, with Back and Continue pinned at the bottom. Progress is kept if the panel closes.',
+          desktop: 'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review. Optional fields are tucked behind one toggle. While it\'s open, the bar steps aside: its top row is just a header with Close, which folds the form away with progress kept.',
+          mobile: 'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review — one short step per screen, with Back and Continue pinned at the bottom. The bar\'s top row is just a header with Close; progress is kept.',
         },
         "The same data as the long production form, with far less on screen at once — and nothing the page already knows is asked twice.", { kind: 'quote' }));
     } else if (state.quoteActive && state.flyout !== 'quote') {
