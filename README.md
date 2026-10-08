@@ -951,8 +951,8 @@ survey) is open, the bar's top row stops repeating the prompt: the dark
 banner, chat, search and the bar's minimize/dismiss controls step aside,
 and the row becomes a slim header naming the form ("Request a Quote" with
 its price-tag badge, or "Quick survey · 4 short steps · about a minute")
-lined up with the form column, with a **Close ⌄** button that folds the
-form away. Closing (or Escape) keeps every answer, brings the banner and
+lined up with the form column, with a round **×** close button that folds
+the form away. Closing (or Escape) keeps every answer, brings the banner and
 the other functions back, and returns focus to the prompt's button, which
 then reads *Continue My Quote* / *Continue Survey*. Dismissing the prompt
 altogether is still the banner's ×.

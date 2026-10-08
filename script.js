@@ -843,7 +843,6 @@
   // header for it: what it is, and a way to close it (answers are kept).
   // The prompt's banner, chat, search and the bar's own controls step aside
   // until it closes (CSS, keyed on data-form, so nothing re-renders).
-  const ICON_CHEVRON_DOWN = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function formHead(kind) {
     const quote = kind === 'quote';
     return h('div', { class: `form-head form-head--${kind}` },
@@ -856,10 +855,10 @@
       h('button', {
         type: 'button', class: 'form-head__close', 'aria-controls': 'stickyFlyout', 'aria-expanded': 'true',
         'aria-label': quote ? 'Close the quote form (your answers are kept)' : 'Close the survey (your answers are kept)',
+        title: 'Close (your answers are kept)',
+        innerHTML: closeIcon(),
         onclick: () => closeFormPanel(kind, 'close button'),
-      },
-      h('span', { text: 'Close' }),
-      h('span', { class: 'form-head__icon', 'aria-hidden': 'true', innerHTML: ICON_CHEVRON_DOWN })));
+      }));
   }
 
   function closeFormPanel(kind, how) {
@@ -5231,8 +5230,8 @@
     if (state.flyout === 'quote' && !state.quoteSubmitted) {
       out.push(note('quote-form', '.quote-flow', 'The full form, in four short steps',
         {
-          desktop: 'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review. Optional fields are tucked behind one toggle. While it\'s open, the bar steps aside: its top row is just a header with Close, which folds the form away with progress kept.',
-          mobile: 'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review — one short step per screen, with Back and Continue pinned at the bottom. The bar\'s top row is just a header with Close; progress is kept.',
+          desktop: 'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review. Optional fields are tucked behind one toggle. While it\'s open, the bar steps aside: its top row is just a header with a × that folds the form away, progress kept.',
+          mobile: 'Vehicle (pre-filled), contact details, nearest dealer from the ZIP, then review — one short step per screen, with Back and Continue pinned at the bottom. The bar\'s top row is just a header with a × that folds it away; progress is kept.',
         },
         "The same data as the long production form, with far less on screen at once — and nothing the page already knows is asked twice.", { kind: 'quote' }));
     } else if (state.quoteActive && state.flyout !== 'quote') {

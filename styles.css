@@ -947,16 +947,17 @@ img.logo-bug { object-fit: cover; }
 }
 .form-head__sub { font-weight: 400; color: var(--grey-600); font-size: .85rem; }
 .form-head__close {
-  flex: none; display: inline-flex; align-items: center; gap: 4px;
-  min-height: 36px; padding: 6px 10px 6px 14px; border-radius: var(--radius-pill);
+  flex: none; display: grid; place-items: center;
+  width: 36px; height: 36px; padding: 0; border-radius: 50%;
   border: 1px solid var(--line-strong); background: #fff; color: var(--ink);
-  font: inherit; font-size: .84rem; font-weight: 600; cursor: pointer;
+  cursor: pointer; transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
-.form-head__close:hover { background: var(--quote-tint); }
-.form-head--survey .form-head__close:hover { background: var(--survey-tint); }
+.form-head__close svg { width: 16px; height: 16px; }
+.form-head__close svg path { stroke-width: 2.2; }
+.form-head__close:hover { background: var(--quote-tint); border-color: var(--quote); }
+.form-head--survey .form-head__close:hover { background: var(--survey-tint); border-color: var(--survey); }
 .form-head__close:focus-visible { outline: 2px solid var(--quote); outline-offset: 2px; }
 .form-head--survey .form-head__close:focus-visible { outline-color: var(--survey); }
-.form-head__icon { display: grid; }
 @media (max-width: 480px) {
   .form-head__sub { display: none; }
 }
